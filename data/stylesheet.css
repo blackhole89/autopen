@@ -1,0 +1,15 @@
+#mainView {
+    font-size: 16px;
+	font-family: Charter, Bitstream Charter, Noto Serif, Noto Serif CJK JP, Noto Naskh Arabic, serif;
+    padding-top: 16px;
+    padding-right: 16px;
+    padding-bottom: 16px;
+}
+
+#predAbove, #predBelow {
+    opacity: 0.35;
+}
+
+#predSelected {
+    opacity: 0.5;
+}

@@ -1,0 +1,26 @@
+diff --git a/llama.cpp b/llama.cpp
+index b03b67e1..26994b2b 100644
+--- a/llama.cpp
++++ b/llama.cpp
+@@ -7467,7 +7467,7 @@ static std::vector<llama_vocab::id> llama_tokenize_internal(const llama_vocab &
+                         //
+                         auto raw_text = fragment.raw_text.substr(fragment.offset, fragment.length);
+                         if (&fragment == &fragment_buffer.front()) {
+-                            raw_text = " " + raw_text; // prefix with space if the first token is not special
++                            //raw_text = " " + raw_text; // prefix with space if the first token is not special
+                         }
+ 
+ #ifdef PRETOKENIZERDEBUG
+@@ -10612,9 +10619,9 @@ size_t llama_set_state_data(struct llama_context * ctx, uint8_t * src) {
+ 
+         GGML_ASSERT(ctx->logits.capacity() >= logits_size);
+ 
+-        if (logits_size) {
+-            ctx->logits.resize(logits_size);
++        ctx->logits.resize(logits_size);
+ 
++        if (logits_size) {
+             memcpy(ctx->logits.data(), inp, logits_size * sizeof(float));
+             inp += logits_size * sizeof(float);
+         }
+
