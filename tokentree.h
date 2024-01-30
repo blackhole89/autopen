@@ -8,22 +8,22 @@
 #include "common.h"
 
 struct TTE {
-    bool is_accepted;
+	bool is_accepted;
 	
 	int base_pos;
 	int depth;
 	
 	std::shared_ptr<uint8_t[]> ctx_snapshot;
 	
-    llama_token tok;
+	llama_token tok;
 	Glib::ustring str;
 	float logit;
 	float max_logit;
 	bool has_logit;
 
-    std::vector<TTE*> children;
+	std::vector<TTE*> children;
 	TTE *parent;
-    int sel;
+	int sel;
 	
 	~TTE();
 };

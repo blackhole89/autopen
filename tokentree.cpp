@@ -13,28 +13,28 @@ void LLMBuffer::init()
 	
 	llama_model_params model_params = llama_model_default_params();
 
-    // model_params.n_gpu_layers = 99; // offload all layers to the GPU
-    model = llama_load_model_from_file("llama.cpp/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf", model_params);
+	// model_params.n_gpu_layers = 99; // offload all layers to the GPU
+	model = llama_load_model_from_file("llama.cpp/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf", model_params);
 
-    if (model == NULL) {
-        fprintf(stderr , "%s: error: unable to load model\n" , __func__);
-        exit(1);
-    }
+	if (model == NULL) {
+		fprintf(stderr , "%s: error: unable to load model\n" , __func__);
+		exit(1);
+	}
 	
-    // initialize the context
-    ctx_params = llama_context_default_params();
+	// initialize the context
+	ctx_params = llama_context_default_params();
 
-    ctx_params.seed  = 1234;
-    ctx_params.n_ctx = 2048;
-    ctx_params.n_threads = params.n_threads;
-    ctx_params.n_threads_batch = params.n_threads_batch == -1 ? params.n_threads : params.n_threads_batch;
+	ctx_params.seed  = 1234;
+	ctx_params.n_ctx = 2048;
+	ctx_params.n_threads = params.n_threads;
+	ctx_params.n_threads_batch = params.n_threads_batch == -1 ? params.n_threads : params.n_threads_batch;
 
-    ctx = llama_new_context_with_model(model, ctx_params);
+	ctx = llama_new_context_with_model(model, ctx_params);
 
-    if (ctx == NULL) {
-        fprintf(stderr , "%s: error: failed to create the llama_context\n" , __func__);
-        exit(1);
-    }
+	if (ctx == NULL) {
+		fprintf(stderr , "%s: error: failed to create the llama_context\n" , __func__);
+		exit(1);
+	}
 	
 	n_vocab = llama_n_vocab(model);
 	
@@ -57,10 +57,10 @@ void LLMBuffer::init()
 	work_done.connect(sigc::mem_fun(this,&LLMBuffer::on_work_done));
 	
 	/*wthread = new std::thread(
-      [this]
-      {
-        workThread();
-      });*/
+	  [this]
+	  {
+		workThread();
+	  });*/
 	
 }
 
@@ -417,7 +417,7 @@ void LLMBuffer::try_start_working()
 		
 		// may not need to rerun the LLM if we are in predict mode
 		if(   (wq.front().wl_type != WL_PREDICT || wq.front().target->children.size()==0)
-           && (wq.front().wl_type != WL_BRANCH  || wq.front().target->children.size()<=(wq.front().target->sel+1)) ) {
+		   && (wq.front().wl_type != WL_BRANCH  || wq.front().target->children.size()<=(wq.front().target->sel+1)) ) {
 			if(wq.front().wl_type == WL_BRANCH)
 				printf("make branch batch\n");
 			ctx_to_load = wlToBatch(&wq.front(),&work_batch);
