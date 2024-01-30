@@ -11,8 +11,8 @@ Everything is licensed under the GNU GPL version 3. At this stage, I don't inten
 ### To build
 ```
 git clone https://github.com/ggerganov/llama.cpp.git
-(cd llama.cpp && patch -p1 ../llama.patch && cmake && make llama)
-cmake
+(cd llama.cpp && patch -p1 ../llama.patch && cmake . && make llama)
+cmake .
 make
 ```
 Dependencies may include gtkmm-3.0 and more.
