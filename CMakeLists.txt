@@ -72,7 +72,7 @@ add_definitions(${CL_VAR_4})
 add_definitions(-std=c++17)
 add_definitions(-g)
 add_definitions(-Wall)
-add_definitions(-Og)
+add_definitions(-O0)
 
 # Linker options
 execute_process(COMMAND 
@@ -118,7 +118,7 @@ set ( CXX_SRCS
 
 set_source_files_properties(
     ${CXX_SRCS} PROPERTIES COMPILE_FLAGS 
-    " -std=c++17 -pthread -pthread -g -Wall -Og")
+    " -std=c++17 -pthread -pthread -g -Wall -O0")
 
 if(WIN32)
     enable_language(RC)

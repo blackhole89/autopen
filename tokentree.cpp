@@ -14,7 +14,8 @@ void LLMBuffer::init()
 	llama_model_params model_params = llama_model_default_params();
 
 	// model_params.n_gpu_layers = 99; // offload all layers to the GPU
-	model = llama_load_model_from_file("llama.cpp/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf", model_params);
+	//model = llama_load_model_from_file("llama.cpp/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf", model_params);
+	model = llama_load_model_from_file("llama.cpp/openhermes-2-mistral-7b.Q4_K_M.gguf", model_params);
 
 	if (model == NULL) {
 		fprintf(stderr , "%s: error: unable to load model\n" , __func__);
@@ -42,16 +43,17 @@ void LLMBuffer::init()
 	root.base_pos=0;
 	root.depth=0;
 	root.is_accepted=true;
+	root.set_tok(1);
 	root.str="";
-	root.tok=1;
 	root.parent=NULL;
 	root.sel=0;
 	root.ctx_snapshot = std::shared_ptr<uint8_t[]>(new uint8_t[llama_get_state_size(ctx)]);
 	llama_copy_state_data(ctx,root.ctx_snapshot.get());
-	ctx_depth=0;
+	ctx_state=NULL;
 	
 	// start work thread
 	work_batch = llama_batch_init(512, 0, 1);
+	work_base = &root;
 	is_working = false;
 	wq_head_invalid = false;
 	work_done.connect(sigc::mem_fun(this,&LLMBuffer::on_work_done));
@@ -90,8 +92,8 @@ TTE *LLMBuffer::pos2ent(int pos)
 	int offs=0;
 	TTE *cur = &root;
 	
-	while(cur == &root || offs<pos) {
-		offs+=cur->str.size();
+	while(cur == &root || offs<pos || !cur->str_size) {
+		offs+=cur->str_size;
 		
 		if(!cur->children.size()) return cur;
 		
@@ -108,7 +110,7 @@ TTE *LLMBuffer::pos2wordent(int pos)
 	TTE *cur = &root;
 	
 	while(offs<pos) {
-		offs+=cur->str.size(); 
+		offs+=cur->str_size; 
 		
 		if(!cur->children.size()) goto pos2wordent_end;
 		
@@ -132,7 +134,7 @@ Glib::ustring LLMBuffer::render(TTE *tt, int max_tok, bool render_predictions)
 	Glib::ustring ret;
 	while(tt && max_tok && (render_predictions || tt->is_accepted)) {
 		ret += tt->str;
-		tt = ((tt->children.size()>0)&&(tt->sel>=0))?tt->children[tt->sel]:NULL;
+		tt = ((tt->children.size()>0)&&(tt->sel>=0))?(TTE*)tt->children[tt->sel]:NULL;
 		--max_tok;
 	}
 	return ret;
@@ -148,33 +150,33 @@ void LLMBuffer::rebuild(TTE *start, Glib::ustring text)
 	if(!tokens_list.size()) {
 		// complete deletion
 		if(start->parent) {
-			for(auto i = start->parent->children.begin(); i!=start->parent->children.end(); i!=++i) {
+			for(auto i = start->parent->children.begin(); i!=start->parent->children.end(); ++i) {
 				if((*i)==start) {
 					start->parent->children.erase(i);
+					delete *i;
 					return;
 				}
 			}
 		}
 	}
 	
-	enqueueWork(WL_SCORE, start->parent?start->parent:start);
+	TTE *rebuild_root = start->parent?start->parent:start;
 	
 	printf("rebuild '%s'\n", text.c_str());
-	start->children.clear();
+	start->clear_children(); 
 	for(size_t i=0;i<tokens_list.size();++i) {
-		start->tok = tokens_list[i];
 		start ->has_logit = false;
-		start->str = llama_token_to_piece(ctx, start->tok);
+		start->set_tok(tokens_list[i]); 
 		// NOTE: Need patched llama.cpp to not add extra space.
 		//if(start->base_pos==0 && start->str[0]==' ') start->str.erase(0,1);
 		
 		printf("%d '%s' . ",start->tok, start->str.c_str());
 		
 		if((i+1)<tokens_list.size()) {
-			start->children.push_back(new TTE());
+			start->children.push_back(new TTE(this));
 			start->sel=0;
 			TTE *next = start->children[0];
-			next->base_pos = start->base_pos + start->str.size();
+			next->base_pos = start->base_pos + start->str_size;
 			next->depth = start->depth + 1;
 			next->parent = start;
 			next->is_accepted = true;
@@ -183,17 +185,41 @@ void LLMBuffer::rebuild(TTE *start, Glib::ustring text)
 		}
 	}
 	printf("\n");
+	
+	enqueueWork(WL_SCORE, rebuild_root);
 }
 
 void LLMBuffer::actualize(TTE *start)
 {
 	Glib::ustring txt = render(start);
+	/* leap over token to get valid UTF-8 */
+	if(!txt.validate()) {
+		printf("utf-8 leap\n");
+		TTE *pos = start;
+		while(pos->children.size()>0 && pos->children[pos->sel]->is_accepted) pos=pos->children[pos->sel];
+		
+		auto extend = [&pos,&txt,&start,this](){ 
+			if(pos->children.size()>0 && !pos->children[pos->sel]->is_accepted) {
+				pos->children[pos->sel]->is_accepted=true;
+				pos=pos->children[pos->sel];
+				txt = render(start);
+				return true;
+			}
+			return false;
+		};
+			
+		while(extend() && !txt.validate());
+		if(!txt.validate()) {
+			start->is_accepted=false;
+			txt="";
+		}
+	}
 	printf("actualize %lX, %d, '%s'\n", start, start->base_pos, txt.c_str());
 	notify_change_tail(start->base_pos, txt);
 	while(start && start->is_accepted)
 	{
 		if(start->has_logit)
-			notify_new_logit(start->base_pos, start->base_pos+start->str.size(), start->logit-start->max_logit);
+			notify_new_logit(start->base_pos, start->base_pos+start->str_size, start->logit-start->max_logit);
 			
 		if(start->children.size()>start->sel) start=start->children[start->sel];
 		else start=NULL;
@@ -203,8 +229,8 @@ void LLMBuffer::actualize(TTE *start)
 /* add workload to be executed after everything else */
 void LLMBuffer::enqueueWork(workload_type t, TTE *target, int gen_extra)
 {
-	printf("enqueue from '%s'\n", target->str.c_str());
-	wq.push_back( TTWorkload { t, target->base_pos, target->base_pos + target->str.size(), target->depth, target, gen_extra } );
+	printf("enqueue from '%s'@%d (+%d)\n", target->str.c_str(), target->depth, target->base_pos);
+	wq.push_back( TTWorkload { t, target->base_pos, target->base_pos + target->str_size, target->depth, target, gen_extra } );
 	
 	try_start_working();
 }
@@ -214,8 +240,8 @@ void LLMBuffer::injectWork(workload_type t, TTE *target, int gen_extra)
 {
 	//printf("inject from '%s'\n", target->str.c_str());
 	
-	if(!is_working) wq.push_front( TTWorkload { t, target->base_pos, target->base_pos + target->str.size(), target->depth, target, gen_extra } );
-	else wq.insert( ++wq.begin(), TTWorkload { t, target->base_pos, target->base_pos + target->str.size(), target->depth, target, gen_extra } );
+	if(!is_working) wq.push_front( TTWorkload { t, target->base_pos, target->base_pos + target->str_size, target->depth, target, gen_extra } );
+	else wq.insert( ++wq.begin(), TTWorkload { t, target->base_pos, target->base_pos + target->str_size, target->depth, target, gen_extra } );
 	
 	try_start_working();
 }
@@ -239,13 +265,27 @@ void LLMBuffer::purgeWork(int start_depth)
 	}
 }
 
+void LLMBuffer::purgePredictionWork()
+{
+	for(auto i = ++wq.begin(), j=i; i!=wq.end(); ) {
+		++j;
+		
+		if(i->wl_type == WL_BRANCH || i->wl_type == WL_PREDICT) {
+			wq.erase(i);
+		}
+		
+		i=j;
+	}
+}
+
 void LLMBuffer::on_work_done()
 {
 	is_working=false;
 	
 	if(!wq_head_invalid) {
 		std::shared_ptr<uint8_t[]> snap;
-		if(!(wq.front().target->depth%10)) {
+		if(llm_state_changed && ((work_base->depth%10)+work_batch.n_tokens)>=10)  {
+			printf("snap, as work base is at %d and processed %d extra tokens\n", work_base->depth, work_batch.n_tokens);
 			snap = std::shared_ptr<uint8_t[]>(new uint8_t[llama_get_state_size(ctx)]);
 			llama_copy_state_data(ctx,snap.get());
 		}
@@ -261,6 +301,15 @@ void LLMBuffer::on_work_done()
 			wq.pop_front();
 			wq_head_invalid=false;
 			
+			/* TODO make sure it's okay to skip if even just the selected child has a logit already */
+			if(!t->children.size() || t->children[t->sel]->has_logit) {
+				if(t->children.size()) injectWork(WL_SCORE, t->children[t->sel], gen_extra);
+				break;
+			}
+			
+			// render any new logits we generated
+			renderLogitsFromBatch(work_base, work_batch.n_tokens-1, &work_batch);
+			
 			printf("decoded '%s' from %d tokens.\n", t->str.c_str(), work_batch.n_tokens);
 			
 			for(int i=0;i<t->children.size();++i) {
@@ -275,7 +324,7 @@ void LLMBuffer::on_work_done()
 					fflush(stdout);
 					
 					if(t->sel == i && tt.is_accepted) {
-						notify_new_logit(tt.base_pos, tt.base_pos+tt.str.size(), tt.logit - tt.max_logit);
+						notify_new_logit(tt.base_pos, tt.base_pos+tt.str_size, tt.logit - tt.max_logit);
 						
 						injectWork(WL_SCORE, &tt, gen_extra);
 					} 
@@ -298,6 +347,9 @@ void LLMBuffer::on_work_done()
 				return;
 			}
 			
+			// render any new logits we generated
+			renderLogitsFromBatch(work_base, work_batch.n_tokens-1, &work_batch);
+			
 			float *logits = llama_get_logits_ith(ctx, work_batch.n_tokens - 1);
 			
 			float l_max=-999.9; int i_max=0;
@@ -308,17 +360,16 @@ void LLMBuffer::on_work_done()
 				}
 			}
 			
-			t->children.push_back(new TTE());
+			t->children.push_back(new TTE(this));
 			t->sel=0;
 			TTE *next = t->children[0];
-			next->base_pos = t->base_pos + t->str.size();
+			next->base_pos = t->base_pos + t->str_size;
 			next->depth = t->depth + 1;
 			next->parent = t;
 			next->is_accepted = false;
-			next->tok = i_max;
+			next->set_tok(i_max);
 			next->logit = l_max;
 			next->max_logit = l_max;
-			next->str = llama_token_to_piece(ctx, next->tok);
 			next->has_logit = true;
 			next->sel = 0;
 			next->ctx_snapshot = snap;
@@ -349,6 +400,9 @@ void LLMBuffer::on_work_done()
 				return;
 			}
 			
+			// render any new logits we generated
+			renderLogitsFromBatch(work_base, work_batch.n_tokens-1, &work_batch);
+			
 			float *logits = llama_get_logits_ith(ctx, work_batch.n_tokens - 1);
 			float max_logit = *std::max_element(logits, logits+n_vocab);
 			
@@ -365,19 +419,20 @@ void LLMBuffer::on_work_done()
 					}
 				}
 				
-				t->children.push_back(new TTE());
+				t->children.push_back(new TTE(this));
 				TTE *next = t->children[t->children.size()-1];
-				next->base_pos = t->base_pos + t->str.size();
+				next->base_pos = t->base_pos + t->str_size;
 				next->depth = t->depth + 1;
 				next->parent = t;
 				next->is_accepted = false;
-				next->tok = i_max;
+				next->set_tok(i_max);
 				next->logit = l_max;
 				next->max_logit = max_logit;
-				next->str = llama_token_to_piece(ctx, next->tok);
 				next->has_logit = true;
 				next->sel = 0;
 				next->ctx_snapshot = snap;
+				
+				printf("new branch: '%s' (%d) at %d with logit %.2f\n", next->str.c_str(), next->tok, next->depth, next->logit);
 				
 				exclude.insert(i_max);
 			}
@@ -385,9 +440,10 @@ void LLMBuffer::on_work_done()
 			notify_new_predictions();
 			
 			if(gen_extra>0) {
-				if(t->sel>0) injectWork(WL_PREDICT, t->children[t->sel-1], gen_extra-1);
-				injectWork(WL_PREDICT, t->children[t->sel+1], gen_extra-1);
 				injectWork(WL_PREDICT, t->children[t->sel], gen_extra-1);
+				enqueueWork(WL_PREDICT, t->children[t->sel+1], gen_extra-1);
+				if(t->sel>0) enqueueWork(WL_PREDICT, t->children[t->sel-1], gen_extra-1);
+				//injectWork(WL_PREDICT, t->children[t->sel], gen_extra-1);
 			}
 			try_start_working();
 			
@@ -407,76 +463,119 @@ void LLMBuffer::try_start_working()
 {
 	if(is_working) return;
 	
+	llm_state_changed = false;
+	
 	if(wq_head_invalid && wq.size()) {
 		wq.pop_front();
 		wq_head_invalid = false;
 	}
 			
 	if(wq.size()) {
-		std::shared_ptr<uint8_t[]> ctx_to_load;
-		
 		// may not need to rerun the LLM if we are in predict mode
-		if(   (wq.front().wl_type != WL_PREDICT || wq.front().target->children.size()==0)
-		   && (wq.front().wl_type != WL_BRANCH  || wq.front().target->children.size()<=(wq.front().target->sel+1)) ) {
-			if(wq.front().wl_type == WL_BRANCH)
-				printf("make branch batch\n");
-			ctx_to_load = wlToBatch(&wq.front(),&work_batch);
-	
-			if(ctx_to_load) {
-				// necessary??
-				llama_free(ctx);
-				ctx = llama_new_context_with_model(model, ctx_params);
-				//llama_reinit_kv_cache(ctx, ctx_params);
-				int n_copied = llama_set_state_data(ctx,ctx_to_load.get());
-				printf("reset %d\n", n_copied);
-			}
-			is_working = true;
-			wthread = new std::thread(
-			  [this]
-			  {
-				llama_decode(ctx, work_batch);
-				++ctx_depth;
-				work_done.emit();
-			  });
-		} else {
+		auto &wl = wq.front();
+		
+		if(    ( wl.wl_type == WL_PREDICT && wl.target->children.size()>0 )
+			|| ( wl.wl_type == WL_BRANCH  && wl.target->children.size()>(wq.front().target->sel+1) )
+			|| ( wl.wl_type == WL_SCORE   && (wl.target->children.size()==0 || wl.target->children[wl.target->sel]->has_logit) ) )
+		{
 			on_work_done();
+			return;
 		}
 		
+		//printf("making batch for: type %d, target: '%s' (%d) at %d (+%d)\n", wl.wl_type, wl.target->str.c_str(), wl.target->tok, wl.target->depth, wl.target->base_pos);
+		prepareBatch(&wq.front());
+
+		is_working = true;
+		wthread = new std::thread(
+		  [this]
+		  {
+			llama_decode(ctx, work_batch);
+			llm_state_changed = true;
+			work_done.emit();
+		  });
 	}
 }
 
-std::shared_ptr<uint8_t[]> LLMBuffer::wlToBatch(TTWorkload *wl, llama_batch *batch)
+void LLMBuffer::renderLogitsFromBatch(TTE* t, int n, llama_batch *b)
 {
-	llama_batch_clear(*batch);
-	if(ctx_depth == wl->target->depth) {
-		llama_batch_add(*batch, wl->target->tok, ctx_depth, { 0 }, false);
-		batch->logits[0]=true;
-		return nullptr; // don't load any context snapshot
+	int i=0;
+	while(n) {
+		if(t->children.size()) {
+			TTE *tt = t->children[t->sel];
+			if(b->logits[i]) {
+				float *logits = llama_get_logits_ith(ctx, i);
+				float max_logit = *std::max_element(logits, logits+n_vocab);
+				
+				tt->logit = logits[tt->tok];
+				tt->max_logit = max_logit;
+				tt->has_logit = true;
+				
+				if(tt->is_accepted) {
+					printf("'%s' (%d) len=%d at %d batch new logit %.2f\n", tt->str.c_str(), tt->tok, tt->str_size, tt->depth, tt->logit);
+					
+					notify_new_logit(tt->base_pos, tt->base_pos+tt->str_size, tt->logit - tt->max_logit);
+				}
+			}
+			t=tt;
+		} else break;
+		--n; ++i;
+	}
+}
+
+void LLMBuffer::prepareBatch(TTWorkload *wl)
+{
+	llama_batch_clear(work_batch);
+	if(ctx_state && ctx_state == wl->target->parent) {
+		llama_batch_add(work_batch, wl->target->tok, wl->target->depth, { 0 }, false);
+		work_batch.logits[0]=true;
+		work_base = wl->target;
+		ctx_state = wl->target;
 	} else {
-		ctx_depth = wl->target->depth;
 		// need to find context snapshot and advance from it
 		std::vector<llama_token> toks;
+		std::vector<bool> need_logits;
+		need_logits.push_back(true);
+		
 		TTE *pos = wl->target;
 		while(!pos->ctx_snapshot){
 			toks.push_back(pos->tok);
+			if(!pos->has_logit) need_logits.push_back(true);
+			else need_logits.push_back(false);
+			
 			pos = pos->parent;
 		}
 		toks.push_back(pos->tok); // assume snapshot was made BEFORE this token
 		
 		// add tokens we saw in reverse order
 		int d = pos->depth;
-		for(auto i = toks.rbegin(); i!=toks.rend(); ++i) {
-			llama_batch_add(*batch, *i, d++, { 0 }, false);
+		for(int i = toks.size()-1; i>=0; --i) {
+			llama_batch_add(work_batch, toks[i], d++, { 0 }, false);
+			work_batch.logits[toks.size()-1-i] = need_logits[i];
 		}
-		batch->logits[batch->n_tokens-1] = true;
 		
-		return pos->ctx_snapshot; // make us load the context snapshot at this pos
+		// reset context to snapshot
+		llama_free(ctx);
+		ctx = llama_new_context_with_model(model, ctx_params);
+		//llama_reinit_kv_cache(ctx, ctx_params);
+		int n_copied = llama_set_state_data(ctx,pos->ctx_snapshot.get());
+		
+		// debug output
+		std::string txt;
+		for(int i = toks.size()-1; i>=0; --i) {
+			txt+=llama_token_to_piece(ctx,toks[i]);
+		}
+		printf("reset to '%s' (%d) at %d (+%d), catchup '%s'\n", pos->str.c_str(), pos->tok, pos->depth, pos->base_pos, txt.c_str());
+		
+		work_base = pos;
+		ctx_state = wl->target;
 	}
 }
 
 void LLMBuffer::req_alts_at_pos(int pos)
 {
 	TTE *cur = pos2ent(pos);
+	printf("req alts from '%s' (%d) at %d (+%d)\n", cur->str.c_str(), cur->tok, cur->depth, cur->base_pos);
+	purgePredictionWork(); // get rid of old prediction tasks
 	injectWork(WL_BRANCH, cur, 4);
 	try_start_working();
 }
@@ -484,7 +583,7 @@ void LLMBuffer::req_alts_at_pos(int pos)
 void LLMBuffer::get_alts_at_pos(int pos, Glib::ustring &above, Glib::ustring &selected, Glib::ustring &below, int &delta)
 {
 	TTE *cur = pos2ent(pos);
-	delta = cur->base_pos + cur->str.size() - pos;
+	delta = cur->base_pos + cur->str_size - pos;
 	if(cur->sel>0) 
 		above = render(cur->children[cur->sel-1],4,true);
 	else above = "";
@@ -528,8 +627,8 @@ int LLMBuffer::alt_commit(int pos)
 	if(cur->children.size()) {
 		cur->children[cur->sel]->is_accepted = true;
 		actualize(cur->children[cur->sel]);
-		return cur->children[cur->sel]->base_pos + cur->children[cur->sel]->str.size();
-	} else return cur->base_pos + cur->str.size();
+		return cur->children[cur->sel]->base_pos + cur->children[cur->sel]->str_size;
+	} else return cur->base_pos + cur->str_size;
 }
 
 int LLMBuffer::alt_back(int pos)
@@ -554,9 +653,36 @@ void LLMBuffer::debug_tte(TTE *pos)
 	}
 }
 
-TTE::~TTE()
+void TTE::set_tok(llama_token t)
 {
+	tok = t;
+	str = llama_token_to_piece(buffer->ctx, t);
+	if(str.validate()) str_size = str.size();
+	else {
+		if((((unsigned char)str.c_str()[0])&0xC0) != 0x80) str_size=1;
+		else str_size=0;
+	}
+}
+
+void TTE::clear_children()
+{	
 	for(TTE *a : children) {
 		delete a;
 	}
+	children.clear();
+}
+
+TTE::~TTE()
+{
+	//printf("del %lX: '%s' (%d) at %d (+%d)\n", this, str.c_str(), tok, depth, base_pos);
+	clear_children();
+	// invalidate the owning buffer's LLM state if it was representing this TTE
+	if(buffer->ctx_state == this) {
+		buffer->ctx_state = NULL;
+	}
+}
+
+TTE::TTE(LLMBuffer *b)
+{
+	buffer = b;
 }

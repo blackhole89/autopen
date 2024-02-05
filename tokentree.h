@@ -7,6 +7,8 @@
 #include <gtkmm.h>
 #include "common.h"
 
+struct LLMBuffer;
+
 struct TTE {
 	bool is_accepted;
 	
@@ -17,14 +19,20 @@ struct TTE {
 	
 	llama_token tok;
 	Glib::ustring str;
+	int str_size;
+	void set_tok(llama_token t); // compute str and size
 	float logit;
 	float max_logit;
 	bool has_logit;
 
-	std::vector<TTE*> children;
+	std::vector<TTE* > children;
 	TTE *parent;
 	int sel;
 	
+	LLMBuffer *buffer;
+	TTE(LLMBuffer *b);
+	
+	void clear_children();
 	~TTE();
 };
 
@@ -55,18 +63,22 @@ struct LLMBuffer {
 	/* work queue */
 	std::list<TTWorkload> wq;
 	bool wq_head_invalid;
-	int ctx_depth;
+	TTE *ctx_state; // token tree entry that the context has last generated / will have after work_batch is executed
 	std::thread *wthread;
-	std::shared_ptr<uint8_t[]> wlToBatch(TTWorkload *wl, llama_batch *b);
 	void enqueueWork(workload_type, TTE *target, int gen_extra=0);
 	void injectWork(workload_type, TTE *target, int gen_extra=0);
 	void purgeWork(int start_depth);
+	void purgePredictionWork();
 	
 	llama_batch work_batch;
+	TTE *work_base;
 	bool is_working;
+	bool llm_state_changed;
 	Glib::Dispatcher work_done;
 	void on_work_done();
 	void try_start_working();
+	void prepareBatch(TTWorkload *wl);
+	void renderLogitsFromBatch(TTE* start, int n, llama_batch *b);
 	
 	void init();
 	
@@ -89,6 +101,8 @@ struct LLMBuffer {
 	
 	
 	void debug_tte(TTE *pos);
+	
+	LLMBuffer() : root(this) {}
 };
 
 
