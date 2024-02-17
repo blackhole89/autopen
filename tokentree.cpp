@@ -15,7 +15,8 @@ void LLMBuffer::init()
 
 	// model_params.n_gpu_layers = 99; // offload all layers to the GPU
 	//model = llama_load_model_from_file("llama.cpp/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf", model_params);
-	model = llama_load_model_from_file("llama.cpp/openhermes-2-mistral-7b.Q4_K_M.gguf", model_params);
+	//model = llama_load_model_from_file("llama.cpp/openhermes-2-mistral-7b.Q4_K_M.gguf", model_params);
+	model = llama_load_model_from_file("llama.cpp/stablelm-zephyr-3b.Q4_K_M.gguf", model_params);
 
 	if (model == NULL) {
 		fprintf(stderr , "%s: error: unable to load model\n" , __func__);
@@ -43,7 +44,7 @@ void LLMBuffer::init()
 	root.base_pos=0;
 	root.depth=0;
 	root.is_accepted=true;
-	root.set_tok(1);
+	root.set_tok(llama_token_bos(model));
 	root.str="";
 	root.parent=NULL;
 	root.sel=0;
@@ -142,7 +143,7 @@ Glib::ustring LLMBuffer::render(TTE *tt, int max_tok, bool render_predictions)
 
 void LLMBuffer::rebuild(TTE *start, Glib::ustring text)
 {
-	std::vector<llama_token> tokens_list = llama_tokenize(ctx, text, start->tok==1,  true);
+	std::vector<llama_token> tokens_list = llama_tokenize(ctx, text, start->tok==llama_token_bos(model),  true);
 	
 	purgeWork(start->depth);
 	notify_invalidate(start->base_pos, start->base_pos + text.size());
@@ -655,6 +656,8 @@ void LLMBuffer::debug_tte(TTE *pos)
 
 void TTE::set_tok(llama_token t)
 {
+	if(tok!=t) ctx_snapshot.reset(); // snapshot was invalidated, reset
+	
 	tok = t;
 	str = llama_token_to_piece(buffer->ctx, t);
 	if(str.validate()) str_size = str.size();
