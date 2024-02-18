@@ -662,7 +662,7 @@ void TTE::set_tok(llama_token t)
 	str = llama_token_to_piece(buffer->ctx, t);
 	if(str.validate()) str_size = str.size();
 	else {
-		if((((unsigned char)str.c_str()[0])&0xC0) != 0x80) str_size=1;
+		if((((unsigned char)str.c_str()[0])&0xC0) != 0x80) str_size = str.size(); // broken token at the end should register as 1
 		else str_size=0;
 	}
 }
