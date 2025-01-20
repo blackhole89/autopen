@@ -10,6 +10,8 @@ void LLMBuffer::init()
 	/* init llama.cpp */
 	gpt_params params;
 	
+	params.n_gpu_layers = 99;
+	
 	llama_backend_init();
     llama_numa_init(params.numa);
 	 
@@ -21,7 +23,9 @@ void LLMBuffer::init()
 	//model = llama_load_model_from_file("llama.cpp/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf", model_params);
 	//model = llama_load_model_from_file("llama.cpp/openhermes-2-mistral-7b.Q4_K_M.gguf", model_params);
 	//model = llama_load_model_from_file("llama.cpp/stablelm-zephyr-3b.Q4_K_M.gguf", model_params);
-	model = llama_load_model_from_file("qwen2.5-1.5b-instruct-q4_k_m.gguf", model_params);
+	//model = llama_load_model_from_file("qwen2.5-1.5b-instruct-q4_k_m.gguf", model_params);
+	model = llama_load_model_from_file("Qwen2.5-3B.Q4_K_M.gguf", model_params);
+	//model = llama_load_model_from_file("Phi-3.5-mini-instruct-Q4_K_M.gguf", model_params);
 
 	if (model == NULL) {
 		fprintf(stderr , "%s: error: unable to load model\n" , __func__);

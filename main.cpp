@@ -14,7 +14,7 @@ int main (int argc, char *argv[])
 #endif
 {
 #ifdef _WIN32
-	if (g_getenv("NK_WIN32_DEBUG") && AllocConsole()) {
+	if (AllocConsole()) {
 		freopen("CONOUT$", "w", stdout);
 		freopen("CONOUT$", "w", stderr);
 	}
