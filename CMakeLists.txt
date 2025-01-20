@@ -138,7 +138,7 @@ target_link_libraries(autopen ${LINK_OPTIONS})
 target_link_libraries(autopen
     z
     fontconfig
-    libllama.a
+    llama
     libcommon.a
 )
 

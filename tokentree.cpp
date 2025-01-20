@@ -9,14 +9,19 @@ void LLMBuffer::init()
 	
 	/* init llama.cpp */
 	gpt_params params;
-	llama_backend_init(params.numa);
+	
+	llama_backend_init();
+    llama_numa_init(params.numa);
+	 
+	//llama_backend_init(params.numa);
 	
 	llama_model_params model_params = llama_model_default_params();
 
 	// model_params.n_gpu_layers = 99; // offload all layers to the GPU
 	//model = llama_load_model_from_file("llama.cpp/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf", model_params);
 	//model = llama_load_model_from_file("llama.cpp/openhermes-2-mistral-7b.Q4_K_M.gguf", model_params);
-	model = llama_load_model_from_file("llama.cpp/stablelm-zephyr-3b.Q4_K_M.gguf", model_params);
+	//model = llama_load_model_from_file("llama.cpp/stablelm-zephyr-3b.Q4_K_M.gguf", model_params);
+	model = llama_load_model_from_file("qwen2.5-1.5b-instruct-q4_k_m.gguf", model_params);
 
 	if (model == NULL) {
 		fprintf(stderr , "%s: error: unable to load model\n" , __func__);
@@ -144,6 +149,10 @@ Glib::ustring LLMBuffer::render(TTE *tt, int max_tok, bool render_predictions)
 void LLMBuffer::rebuild(TTE *start, Glib::ustring text)
 {
 	std::vector<llama_token> tokens_list = llama_tokenize(ctx, text, start->tok==llama_token_bos(model),  true);
+	
+	if(start->tok==llama_token_bos(model) && (tokens_list.size()>=1 && tokens_list[0]!=llama_token_bos(model))) {
+		tokens_list.insert(tokens_list.begin(),llama_token_bos(model));
+	}
 	
 	purgeWork(start->depth);
 	notify_invalidate(start->base_pos, start->base_pos + text.size());
@@ -563,7 +572,7 @@ void LLMBuffer::prepareBatch(TTWorkload *wl)
 		// debug output
 		std::string txt;
 		for(int i = toks.size()-1; i>=0; --i) {
-			txt+=llama_token_to_piece(ctx,toks[i]);
+			txt+=llama_token_to_piece(ctx,toks[i],false);
 		}
 		printf("reset to '%s' (%d) at %d (+%d), catchup '%s'\n", pos->str.c_str(), pos->tok, pos->depth, pos->base_pos, txt.c_str());
 		
@@ -656,10 +665,10 @@ void LLMBuffer::debug_tte(TTE *pos)
 
 void TTE::set_tok(llama_token t)
 {
-	if(tok!=t) ctx_snapshot.reset(); // snapshot was invalidated, reset
+	//if(tok!=t) ctx_snapshot.reset(); // snapshot was invalidated, reset
 	
 	tok = t;
-	str = llama_token_to_piece(buffer->ctx, t);
+	str = llama_token_to_piece(buffer->ctx, t, false);
 	if(str.validate()) str_size = str.size();
 	else {
 		if((((unsigned char)str.c_str()[0])&0xC0) != 0x80) str_size = str.size(); // broken token at the end should register as 1

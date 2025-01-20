@@ -11,7 +11,11 @@ Everything is licensed under the GNU GPL version 3. At this stage, I don't inten
 ### To build
 ```
 git clone https://github.com/ggerganov/llama.cpp.git
-(cd llama.cpp && patch -p1 ../llama.patch && cmake . && make llama)
+cd llama.cpp
+git reset --hard 88540445
+patch -p1 < ../llama.patch
+cmake . && make llama && make common
+cd ..
 cmake .
 make
 ```
@@ -20,5 +24,5 @@ Dependencies may include gtkmm-3.0 and more.
 ```
 ./cmake-build-Release/output/autopen
 ```
-The model location is hardcoded to `./llama.cpp/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf` (so in particular, this file is assumed to be present), but feel free to change this.
+The model location is hardcoded to `./qwen2.5-1.5b-instruct-q4_k_m.gguf` (so in particular, this file is assumed to be present), but feel free to change this.
 
