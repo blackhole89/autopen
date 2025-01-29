@@ -6,6 +6,8 @@ void LLMBuffer::init()
 	/* init callbacks */
 	notify_invalidate = [](int,int) {};
 	notify_new_logit = [](int,int,float) {};
+	notify_new_predictions = []() {};
+	notify_change_tail = [](int, std::string) {};
 	
 	/* init llama.cpp */
 	gpt_params params;
@@ -19,7 +21,7 @@ void LLMBuffer::init()
 	
 	llama_model_params model_params = llama_model_default_params();
 
-	// model_params.n_gpu_layers = 99; // offload all layers to the GPU
+	//model_params.n_gpu_layers = 99; // offload all layers to the GPU
 	//model = llama_load_model_from_file("llama.cpp/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf", model_params);
 	//model = llama_load_model_from_file("llama.cpp/openhermes-2-mistral-7b.Q4_K_M.gguf", model_params);
 	//model = llama_load_model_from_file("llama.cpp/stablelm-zephyr-3b.Q4_K_M.gguf", model_params);
@@ -66,7 +68,8 @@ void LLMBuffer::init()
 	work_base = &root;
 	is_working = false;
 	wq_head_invalid = false;
-	work_done.connect(sigc::mem_fun(this,&LLMBuffer::on_work_done));
+	//work_done.connect(sigc::mem_fun(this,&LLMBuffer::on_work_done));
+	work_done_flag = false;
 	
 	/*wthread = new std::thread(
 	  [this]
@@ -76,10 +79,10 @@ void LLMBuffer::init()
 	
 }
 
-void LLMBuffer::insert(int pos, Glib::ustring text)
+void LLMBuffer::insert(int pos, std::string text)
 {
 	TTE *start = pos2wordent(pos);
-	Glib::ustring tail = render(start);
+	std::string tail = render(start);
 	printf("pre-ins: '%s', '%s', %d\n", tail.c_str(), text.c_str(), pos - start->base_pos);
 	tail.insert(pos - start->base_pos, text);
 	printf("post-ins: '%s'\n", tail.c_str());
@@ -90,7 +93,7 @@ void LLMBuffer::insert(int pos, Glib::ustring text)
 void LLMBuffer::erase(int from, int to)
 {
 	TTE *start = pos2wordent(from);
-	Glib::ustring tail = render(start);
+	std::string tail = render(start);
 	tail.erase(from - start->base_pos, to - from);
 	
 	rebuild(start, tail);
@@ -129,7 +132,7 @@ TTE *LLMBuffer::pos2wordent(int pos)
 	
 	if(cur->parent) cur=cur->parent;
 	
-	while(cur->parent && cur->str.find(' ')==Glib::ustring::npos) {
+	while(cur->parent && cur->str.find(' ')==std::string::npos) {
 		cur=cur->parent;
 pos2wordent_end:;
 //		printf("back: %lX, '%s'\n", cur->parent, cur->str.c_str());
@@ -139,9 +142,9 @@ pos2wordent_end:;
 }
 
 /* convert live path from token tree entry to string */
-Glib::ustring LLMBuffer::render(TTE *tt, int max_tok, bool render_predictions)
+std::string LLMBuffer::render(TTE *tt, int max_tok, bool render_predictions)
 {
-	Glib::ustring ret;
+	std::string ret;
 	while(tt && max_tok && (render_predictions || tt->is_accepted)) {
 		ret += tt->str;
 		tt = ((tt->children.size()>0)&&(tt->sel>=0))?(TTE*)tt->children[tt->sel]:NULL;
@@ -150,7 +153,7 @@ Glib::ustring LLMBuffer::render(TTE *tt, int max_tok, bool render_predictions)
 	return ret;
 }
 
-void LLMBuffer::rebuild(TTE *start, Glib::ustring text)
+void LLMBuffer::rebuild(TTE *start, std::string text)
 {
 	std::vector<llama_token> tokens_list = llama_tokenize(ctx, text, start->tok==llama_token_bos(model),  true);
 	
@@ -203,11 +206,38 @@ void LLMBuffer::rebuild(TTE *start, Glib::ustring text)
 	enqueueWork(WL_SCORE, rebuild_root);
 }
 
+bool validate_utf8(const char *str, int len) {
+    int n;
+    for (int i = 0; i < len; ++i) {
+        unsigned char c = (unsigned char) str[i];
+        if (0x00 <= c && c <= 0x7f) {
+            n=0; // 0bbbbbbb
+        } else if ((c & 0xE0) == 0xC0) {
+            n=1; // 110bbbbb
+        } else if ( c==0xed && i<(len-1) && ((unsigned char)str[i+1] & 0xa0)==0xa0) {
+            return false; //U+d800 to U+dfff
+        } else if ((c & 0xF0) == 0xE0) {
+            n=2; // 1110bbbb
+        } else if ((c & 0xF8) == 0xF0) {
+            n=3; // 11110bbb
+        } else {
+            return false;
+        }
+
+        for (int j = 0; j < n && i < len; ++j) { // n bytes matching 10bbbbbb?
+            if ((++i == len) || (( (unsigned char)str[i] & 0xC0) != 0x80)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 void LLMBuffer::actualize(TTE *start)
 {
-	Glib::ustring txt = render(start);
+	std::string txt = render(start);
 	/* leap over token to get valid UTF-8 */
-	if(!txt.validate()) {
+	if(!validate_utf8(txt.c_str(),txt.length())) {
 		printf("utf-8 leap\n");
 		TTE *pos = start;
 		while(pos->children.size()>0 && pos->children[pos->sel]->is_accepted) pos=pos->children[pos->sel];
@@ -222,8 +252,8 @@ void LLMBuffer::actualize(TTE *start)
 			return false;
 		};
 			
-		while(extend() && !txt.validate());
-		if(!txt.validate()) {
+		while(extend() && !validate_utf8(txt.c_str(),txt.length()));
+		if(!validate_utf8(txt.c_str(),txt.length())) {
 			start->is_accepted=false;
 			txt="";
 		}
@@ -281,6 +311,11 @@ void LLMBuffer::purgeWork(int start_depth)
 
 void LLMBuffer::purgePredictionWork()
 {
+	//printf("purge pw!\n");
+	if(!wq.size()) return;
+	if(wq.front().wl_type == WL_BRANCH || wq.front().wl_type == WL_PREDICT) {
+		//wq_head_invalid = true;
+	}
 	for(auto i = ++wq.begin(), j=i; i!=wq.end(); ) {
 		++j;
 		
@@ -289,6 +324,14 @@ void LLMBuffer::purgePredictionWork()
 		}
 		
 		i=j;
+	}
+}
+
+void LLMBuffer::CheckWork()
+{
+	if(work_done_flag) {
+		work_done_flag = false;
+		on_work_done();
 	}
 }
 
@@ -388,6 +431,11 @@ void LLMBuffer::on_work_done()
 			next->sel = 0;
 			next->ctx_snapshot = snap;
 			
+			printf("new pred: '%s' (%d) at %d with logit %.2f\n", next->str.c_str(), next->tok, next->depth, next->logit);
+			/* if(next->tok == 362) {
+				printf("!?\n");
+			} */ // "What is happening here? A"
+			
 			notify_new_predictions();
 			
 			if(gen_extra>0)
@@ -447,6 +495,9 @@ void LLMBuffer::on_work_done()
 				next->ctx_snapshot = snap;
 				
 				printf("new branch: '%s' (%d) at %d with logit %.2f\n", next->str.c_str(), next->tok, next->depth, next->logit);
+				/*if(next->tok == 3555) {
+					printf("!?\n");
+				}*/ // "What is happening here? What"
 				
 				exclude.insert(i_max);
 			}
@@ -505,7 +556,8 @@ void LLMBuffer::try_start_working()
 		  {
 			llama_decode(ctx, work_batch);
 			llm_state_changed = true;
-			work_done.emit();
+			//work_done.emit();
+			work_done_flag = true;
 		  });
 	}
 }
@@ -544,6 +596,7 @@ void LLMBuffer::prepareBatch(TTWorkload *wl)
 		work_batch.logits[0]=true;
 		work_base = wl->target;
 		ctx_state = wl->target;
+		printf("single step by '%s' (%d) at %d (+%d)\n", wl->target->str.c_str(), wl->target->tok, wl->target->depth, wl->target->base_pos);
 	} else {
 		// need to find context snapshot and advance from it
 		std::vector<llama_token> toks;
@@ -577,6 +630,7 @@ void LLMBuffer::prepareBatch(TTWorkload *wl)
 		std::string txt;
 		for(int i = toks.size()-1; i>=0; --i) {
 			txt+=llama_token_to_piece(ctx,toks[i],false);
+			//printf("%d ",toks[i]);
 		}
 		printf("reset to '%s' (%d) at %d (+%d), catchup '%s'\n", pos->str.c_str(), pos->tok, pos->depth, pos->base_pos, txt.c_str());
 		
@@ -591,10 +645,11 @@ void LLMBuffer::req_alts_at_pos(int pos)
 	printf("req alts from '%s' (%d) at %d (+%d)\n", cur->str.c_str(), cur->tok, cur->depth, cur->base_pos);
 	purgePredictionWork(); // get rid of old prediction tasks
 	injectWork(WL_BRANCH, cur, 4);
+	injectWork(WL_PREDICT, cur, 4);
 	try_start_working();
 }
 
-void LLMBuffer::get_alts_at_pos(int pos, Glib::ustring &above, Glib::ustring &selected, Glib::ustring &below, int &delta)
+void LLMBuffer::get_alts_at_pos(int pos, std::string &above, std::string &selected, std::string &below, int &delta)
 {
 	TTE *cur = pos2ent(pos);
 	delta = cur->base_pos + cur->str_size - pos;
@@ -673,11 +728,14 @@ void TTE::set_tok(llama_token t)
 	
 	tok = t;
 	str = llama_token_to_piece(buffer->ctx, t, false);
+	str_size = str.size();
+	/*
 	if(str.validate()) str_size = str.size();
 	else {
 		if((((unsigned char)str.c_str()[0])&0xC0) != 0x80) str_size = str.size(); // broken token at the end should register as 1
 		else str_size=0;
 	}
+	*/
 }
 
 void TTE::clear_children()

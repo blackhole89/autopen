@@ -4,7 +4,6 @@
 #include <list>
 #include <thread>
 #include <mutex>
-#include <gtkmm.h>
 #include "common.h"
 
 struct LLMBuffer;
@@ -18,7 +17,7 @@ struct TTE {
 	std::shared_ptr<uint8_t[]> ctx_snapshot;
 	
 	llama_token tok;
-	Glib::ustring str;
+	std::string str;
 	int str_size;
 	void set_tok(llama_token t); // compute str and size
 	float logit;
@@ -36,7 +35,7 @@ struct TTE {
 	~TTE();
 };
 
-enum workload_type { WL_SCORE, WL_PREDICT, WL_BRANCH };
+enum workload_type { WL_SCORE=0, WL_PREDICT, WL_BRANCH };
 
 struct TTWorkload {
 	workload_type wl_type;
@@ -58,7 +57,7 @@ struct LLMBuffer {
 	std::function<void(int,int)> notify_invalidate;
 	std::function<void(int,int,float)> notify_new_logit;
 	std::function<void(void)> notify_new_predictions;
-	std::function<void(int,Glib::ustring)> notify_change_tail;
+	std::function<void(int,std::string)> notify_change_tail;
 	
 	/* work queue */
 	std::list<TTWorkload> wq;
@@ -74,7 +73,9 @@ struct LLMBuffer {
 	TTE *work_base;
 	bool is_working;
 	bool llm_state_changed;
-	Glib::Dispatcher work_done;
+	//Glib::Dispatcher work_done;
+	bool work_done_flag;
+	void CheckWork();
 	void on_work_done();
 	void try_start_working();
 	void prepareBatch(TTWorkload *wl);
@@ -82,18 +83,18 @@ struct LLMBuffer {
 	
 	void init();
 	
-	void insert(int pos, Glib::ustring text);
+	void insert(int pos, std::string text);
 	void erase(int from, int to);
 	
 	TTE *pos2ent(int pos);
 	TTE *pos2wordent(int pos);
 	
-	Glib::ustring render(TTE *tt, int max_tok=INT_MAX, bool render_predictions=false);
-	void rebuild(TTE *start, Glib::ustring text);
+	std::string render(TTE *tt, int max_tok=99999, bool render_predictions=false);
+	void rebuild(TTE *start, std::string text);
 	void actualize(TTE *start);
 	
 	void req_alts_at_pos(int pos);
-	void get_alts_at_pos(int pos, Glib::ustring &above, Glib::ustring &selected, Glib::ustring &below, int &delta);
+	void get_alts_at_pos(int pos, std::string &above, std::string &selected, std::string &below, int &delta);
 	void alt_next(int pos);
 	void alt_prev(int pos);
 	int alt_commit(int pos);

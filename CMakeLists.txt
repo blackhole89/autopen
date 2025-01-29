@@ -36,6 +36,8 @@ include_directories(
     .
     llama.cpp/
     llama.cpp/common/
+    imgui/
+    imgui/backends/
 
 )
 
@@ -65,14 +67,25 @@ execute_process(COMMAND
     CL_TMP_VAR
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 string(STRIP ${CL_TMP_VAR} CL_VAR_4)
+execute_process(COMMAND 
+    pkg-config --cflags sdl2
+    OUTPUT_VARIABLE
+    CL_TMP_VAR
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+string(STRIP ${CL_TMP_VAR} CL_VAR_5)
 add_definitions(${CL_VAR_1})
 add_definitions(${CL_VAR_2})
 add_definitions(${CL_VAR_3})
 add_definitions(${CL_VAR_4})
+add_definitions(${CL_VAR_5})
 add_definitions(-std=c++17)
 add_definitions(-g)
 add_definitions(-Wall)
-add_definitions(-O0)
+add_definitions(-Og)
+add_definitions(
+    -D_REENTRANT
+)
+
 
 # Linker options
 execute_process(COMMAND 
@@ -80,22 +93,29 @@ execute_process(COMMAND
     OUTPUT_VARIABLE
     CL_TMP_VAR
     OUTPUT_STRIP_TRAILING_WHITESPACE)
-string(STRIP ${CL_TMP_VAR} CL_VAR_5)
+string(STRIP ${CL_TMP_VAR} CL_VAR_6)
 execute_process(COMMAND 
     pkg-config --libs gtksourceviewmm-3.0
     OUTPUT_VARIABLE
     CL_TMP_VAR
     OUTPUT_STRIP_TRAILING_WHITESPACE)
-string(STRIP ${CL_TMP_VAR} CL_VAR_6)
+string(STRIP ${CL_TMP_VAR} CL_VAR_7)
 execute_process(COMMAND 
     pkg-config --libs jsoncpp
     OUTPUT_VARIABLE
     CL_TMP_VAR
     OUTPUT_STRIP_TRAILING_WHITESPACE)
-string(STRIP ${CL_TMP_VAR} CL_VAR_7)
-set(LINK_OPTIONS ${CL_VAR_5})
-set(LINK_OPTIONS ${LINK_OPTIONS} ${CL_VAR_6})
+string(STRIP ${CL_TMP_VAR} CL_VAR_8)
+execute_process(COMMAND 
+    pkg-config --libs sdl2
+    OUTPUT_VARIABLE
+    CL_TMP_VAR
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+string(STRIP ${CL_TMP_VAR} CL_VAR_9)
+set(LINK_OPTIONS ${CL_VAR_6})
 set(LINK_OPTIONS ${LINK_OPTIONS} ${CL_VAR_7})
+set(LINK_OPTIONS ${LINK_OPTIONS} ${CL_VAR_8})
+set(LINK_OPTIONS ${LINK_OPTIONS} ${CL_VAR_9})
 
 
 if(WIN32)
@@ -111,14 +131,21 @@ link_directories(
 
 # Define the CXX sources
 set ( CXX_SRCS
+    ${CMAKE_CURRENT_LIST_DIR}/editor.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/imgui/backends/imgui_impl_opengl3.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/imgui/backends/imgui_impl_sdl2.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tokentree.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui_widgets.cpp
     ${CMAKE_CURRENT_LIST_DIR}/main.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/mainwindow.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui_demo.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui_draw.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui_tables.cpp
 )
 
 set_source_files_properties(
     ${CXX_SRCS} PROPERTIES COMPILE_FLAGS 
-    " -std=c++17 -pthread -pthread -g -Wall -O0")
+    " -std=c++17 -pthread -pthread -g -Wall -Og")
 
 if(WIN32)
     enable_language(RC)
@@ -138,8 +165,11 @@ target_link_libraries(autopen ${LINK_OPTIONS})
 target_link_libraries(autopen
     z
     fontconfig
-    llama
+    libllama.a
     libcommon.a
+    vulkan
+    gomp
+    GL
 )
 
 

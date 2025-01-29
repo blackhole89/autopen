@@ -1,5 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CodeLite_Project Name="autopen" Version="11000" InternalType="GUI">
+  <VirtualDirectory Name="imgui">
+    <VirtualDirectory Name="backends">
+      <File Name="imgui/backends/imgui_impl_opengl3.cpp"/>
+      <File Name="imgui/backends/imgui_impl_opengl3.h"/>
+      <File Name="imgui/backends/imgui_impl_sdl2.h"/>
+      <File Name="imgui/backends/imgui_impl_sdl2.cpp"/>
+    </VirtualDirectory>
+    <File Name="imgui/imconfig.h"/>
+    <File Name="imgui/imgui.cpp"/>
+    <File Name="imgui/imgui.h"/>
+    <File Name="imgui/imgui_demo.cpp"/>
+    <File Name="imgui/imgui_draw.cpp"/>
+    <File Name="imgui/imgui_internal.h"/>
+    <File Name="imgui/imgui_tables.cpp"/>
+    <File Name="imgui/imgui_widgets.cpp"/>
+    <File Name="imgui/imstb_rectpack.h"/>
+    <File Name="imgui/imstb_textedit.h"/>
+    <File Name="imgui/imstb_truetype.h"/>
+  </VirtualDirectory>
   <Plugins>
     <Plugin Name="qmake">
       <![CDATA[00020001N0005Debug0000000000000001N0007Release000000000000]]>
@@ -8,20 +27,20 @@
   <Description/>
   <Dependencies/>
   <VirtualDirectory Name="include">
+    <File Name="editor.h"/>
     <File Name="tokentree.h"/>
-    <File Name="mainwindow.h"/>
   </VirtualDirectory>
   <VirtualDirectory Name="src">
+    <File Name="editor.cpp"/>
     <File Name="tokentree.cpp"/>
-    <File Name="mainwindow.cpp"/>
     <File Name="main.cpp"/>
   </VirtualDirectory>
   <Settings Type="Executable">
     <GlobalSettings>
-      <Compiler Options="-std=c++17;$(shell pkg-config --cflags gtkmm-3.0);$(shell pkg-config --cflags gtksourceviewmm-3.0);$(shell pkg-config --cflags jsoncpp);$(shell pkg-config --cflags fontconfig)" C_Options="" Assembler="">
+      <Compiler Options="-std=c++17;$(shell pkg-config --cflags gtkmm-3.0);$(shell pkg-config --cflags gtksourceviewmm-3.0);$(shell pkg-config --cflags jsoncpp);$(shell pkg-config --cflags fontconfig);$(shell pkg-config --cflags sdl2)" C_Options="" Assembler="">
         <IncludePath Value="."/>
       </Compiler>
-      <Linker Options="$(shell pkg-config --libs gtkmm-3.0);$(shell pkg-config --libs gtksourceviewmm-3.0);$(shell pkg-config --libs jsoncpp)">
+      <Linker Options="$(shell pkg-config --libs gtkmm-3.0);$(shell pkg-config --libs gtksourceviewmm-3.0);$(shell pkg-config --libs jsoncpp);$(shell pkg-config --libs sdl2)">
         <LibraryPath Value="."/>
         <LibraryPath Value="llama.cpp/"/>
         <LibraryPath Value="llama.cpp/common/"/>
@@ -29,6 +48,9 @@
         <Library Value="fontconfig"/>
         <Library Value="libllama.a"/>
         <Library Value="libcommon.a"/>
+        <Library Value="vulkan"/>
+        <Library Value="gomp"/>
+        <Library Value="GL"/>
       </Linker>
       <ResourceCompiler Options=""/>
     </GlobalSettings>
@@ -37,6 +59,8 @@
         <IncludePath Value="."/>
         <IncludePath Value="llama.cpp/"/>
         <IncludePath Value="llama.cpp/common/"/>
+        <IncludePath Value="imgui/"/>
+        <IncludePath Value="imgui/backends/"/>
       </Compiler>
       <Linker Options="" Required="yes"/>
       <ResourceCompiler Options="" Required="no"/>
@@ -78,6 +102,8 @@
         <IncludePath Value="."/>
         <IncludePath Value="llama.cpp/"/>
         <IncludePath Value="llama.cpp/common/"/>
+        <IncludePath Value="imgui/"/>
+        <IncludePath Value="imgui/backends/"/>
         <Preprocessor Value="NDEBUG"/>
       </Compiler>
       <Linker Options="" Required="yes"/>
