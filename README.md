@@ -10,16 +10,19 @@ Everything is licensed under the GNU GPL version 3. At this stage, I don't inten
 
 ### To build
 ```
+git clone https://github.com/ocornut/imgui.git
+cd imgui
+git checkout docking
+cd ..
 git clone https://github.com/ggerganov/llama.cpp.git
 cd llama.cpp
-git reset --hard 88540445
-patch -p1 < ../llama.patch
+# patch -p1 < ../llama.patch
 cmake . && make llama && make common
 cd ..
 cmake .
 make
 ```
-Dependencies may include gtkmm-3.0 and more.
+Dependencies may include SDL2 and more.
 ### To run
 ```
 ./cmake-build-Release/output/autopen

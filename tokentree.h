@@ -53,13 +53,22 @@ struct LLMBuffer {
 	llama_model *model;
 	llama_context_params ctx_params;
 	llama_context *ctx;
+	const llama_vocab *vocab;
 	int n_vocab;
 	
 	std::function<void(int,int)> notify_invalidate;
 	std::function<void(int,int,float)> notify_new_logit;
 	std::function<void(void)> notify_new_predictions;
 	std::function<void(int,std::string)> notify_change_tail;
-	
+
+	/* config */
+	int snapshot_freq = 10;
+	int predict_main = 6;
+	int predict_alt = 4;
+
+	/* model params */
+	std::string model_fn, model_arch, model_size;
+
 	/* work queue */
 	std::list<TTWorkload> wq;
 	bool wq_head_invalid;
@@ -79,10 +88,11 @@ struct LLMBuffer {
 	void CheckWork();
 	void on_work_done();
 	void try_start_working();
-	void prepareBatch(TTWorkload *wl);
+	std::shared_ptr<uint8_t[]> prepareBatch(TTWorkload *wl);
 	void renderLogitsFromBatch(TTE* start, int n, llama_batch *b);
 	
 	void init();
+	void load_model(const char *fn);
 	
 	void insert(int pos, std::string text);
 	void erase(int from, int to);

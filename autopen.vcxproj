@@ -75,6 +75,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <OutDir>test\</OutDir>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg">
     <VcpkgEnableManifest>true</VcpkgEnableManifest>
@@ -98,8 +99,8 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
-      <AdditionalLibraryDirectories>llama.cpp\build-x64-windows-msvc-release-cuda;llama.cpp\build-x64-windows-msvc-debug-cuda\common</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);llama.lib;common.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>llama.cpp\build-x64-windows-msvc-release-cuda\ggml\src;llama.cpp\build-x64-windows-msvc-release-cuda\src;llama.cpp\build-x64-windows-msvc-debug-cuda\common</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);llama.lib;common.lib;ggml.lib;ggml-base.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -118,15 +119,16 @@
     <ClCompile>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
-      <AdditionalIncludeDirectories>imgui\;imgui\backends\;llama.cpp\;llama.cpp\common\;vcpkg_installed/x64-windows/x64-windows/include/SDL2</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>imgui\;imgui\backends\;llama.cpp\include;llama.cpp\ggml\include;llama.cpp\common\;vcpkg_installed/x64-windows/x64-windows/include/SDL2</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>llama.cpp\build-x64-windows-msvc-release-cuda;llama.cpp\build-x64-windows-msvc-release-cuda\common</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);llama.lib;common.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>llama.cpp\build-x64-windows-msvc-release-cuda\ggml\src;llama.cpp\build-x64-windows-msvc-release-cuda\src;llama.cpp\build-x64-windows-msvc-release-cuda\common</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);llama.lib;common.lib;ggml.lib;ggml-base.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

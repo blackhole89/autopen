@@ -75,11 +75,12 @@ struct CEditor {
 	
 	ImFont *font_editor, *font_ui;
 	
-	bool p_wqueue = true;
+	bool p_wqueue = true, p_settings = false;
 	
 	char *buf;
 	
 	void Init();
 	void Render();
+    void SettingsWindow();
 	bool EditorWidget(const char* label, const char* hint, char* buf, int buf_size, const ImVec2& size_arg, ImGuiInputTextFlags flags);
 };

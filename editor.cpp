@@ -7,6 +7,10 @@
 
 #include "editor.h"
 
+#include <algorithm>
+
+#include "imfilebrowser/imfilebrowser.h"
+
 namespace LLMStb {
 static bool ReplaceTail(LLMTextState* obj, int pos, const char* new_text, int new_text_len);
 }
@@ -22,6 +26,61 @@ void CEditor::Init()
 	buf[0]=0;
 }
 
+void CEditor::SettingsWindow()
+{
+    if(p_settings) {
+        ImGui::SetNextWindowSize(ImVec2(300, 300), ImGuiCond_FirstUseEver);
+        if(ImGui::Begin("Settings##sw", &p_settings)) {
+            ImGui::PushItemWidth(100);
+            ImGui::InputInt("Snapshot interval", &llmst.llm.snapshot_freq);
+            ImGui::SetItemTooltip("LLM state will be stored at this interval. Lower values make predictions faster, but use more RAM.");
+            
+            ImGui::InputInt("Main prediction depth", &llmst.llm.predict_main);
+            ImGui::SetItemTooltip("How many tokens to predict for the currently selected branch");
+
+            ImGui::InputInt("Side prediction depth", &llmst.llm.predict_alt);
+            ImGui::SetItemTooltip("How many tokens to predict for alternative branches");
+
+            ImGui::PopItemWidth();
+
+            ImGui::Separator();
+
+            static ImGui::FileBrowser fileDialog;
+
+            fileDialog.SetTitle("Select GGUF model");
+            fileDialog.SetTypeFilters({".gguf"});
+
+            ImGui::Text("Loaded model: "); ImGui::SameLine();
+            if(ImGui::Button(llmst.llm.model_fn.c_str())) 
+                fileDialog.Open();
+
+            fileDialog.Display();
+            
+            if(fileDialog.HasSelected()) {
+                llmst.llm.load_model(fileDialog.GetSelected().string().c_str());
+                fileDialog.ClearSelected();
+            }
+
+            ImGui::Text("Type: %s %s",llmst.llm.model_arch.c_str(), llmst.llm.model_size.c_str());
+
+            ImGui::Text("Params: %lld   Layers: %d   Heads: %d", llama_model_n_params(llmst.llm.model), llama_model_n_layer(llmst.llm.model), llama_model_n_head(llmst.llm.model));
+
+            bool open = ImGui::CollapsingHeader("Model metadata");
+            if(open) {
+                for(int i=0; i<llama_model_meta_count(llmst.llm.model); i++) {
+                    char k_buf[256], v_buf[256];
+                    llama_model_meta_key_by_index(llmst.llm.model, i, k_buf, 256);
+                    llama_model_meta_val_str_by_index(llmst.llm.model, i, v_buf, 256);
+                
+                    ImGui::Text("%s = %s", k_buf, v_buf);
+                }
+            }
+            
+        }
+        ImGui::End();
+    }
+}
+
 void CEditor::Render()
 {
 	llmst.llm.CheckWork();
@@ -32,6 +91,11 @@ void CEditor::Render()
     {
         if (ImGui::BeginMenu("File"))
         {
+            ImGui::MenuItem("Load buffer", NULL, false, false);
+            ImGui::MenuItem("Save buffer", NULL, false, false);
+            ImGui::Separator();
+            if(ImGui::MenuItem("Settings", NULL, false, true))
+                p_settings = true;
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Windows"))
@@ -42,7 +106,7 @@ void CEditor::Render()
 		ImGui::EndMainMenuBar();
 	}
 	
-	ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
+	ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -63,18 +127,22 @@ void CEditor::Render()
 	ImGui::End();
 	
 	//ImGui::ShowDemoWindow();
-	if(p_wqueue && ImGui::Begin("Work queue", &p_wqueue, ImGuiWindowFlags_NoDocking)) {
-		if (ImGui::BeginListBox("##wq", ImVec2(-FLT_MIN, -FLT_MIN)))
-		{
-			const char *wl_typenames[3] = { "SCORE  ", "PREDICT", "BRANCH " };
-			for(auto i = llmst.llm.wq_head_invalid?++llmst.llm.wq.begin():llmst.llm.wq.begin(); i!=llmst.llm.wq.end(); ++i) {
-				ImGui::Text("%s %16lX %d (+%d) '%s'..", wl_typenames[i->wl_type], i->target, i->depth, i->base_pos, i->target->str.c_str());
-			}
-			ImGui::EndListBox();
-		}
-		
+	if(p_wqueue) {
+        ImGui::SetNextWindowSize(ImVec2(300, 300), ImGuiCond_FirstUseEver);
+        if(ImGui::Begin("Work queue", &p_wqueue)) {
+		    if (ImGui::BeginListBox("##wq", ImVec2(-FLT_MIN, -FLT_MIN)))
+		    {
+			    const char *wl_typenames[3] = { "SCORE  ", "PREDICT", "BRANCH " };
+			    for(auto i = llmst.llm.wq_head_invalid?++llmst.llm.wq.begin():llmst.llm.wq.begin(); i!=llmst.llm.wq.end(); ++i) {
+				    ImGui::Text("%s %16lX %d (+%d) '%s'..", wl_typenames[i->wl_type], i->target, i->depth, i->base_pos, i->target->str.c_str());
+			    }
+			    ImGui::EndListBox();
+		    }
+        }
 		ImGui::End();
 	}
+
+    SettingsWindow();
 	
 	ImGui::PopFont();
 }
@@ -857,7 +925,7 @@ bool CEditor::EditorWidget(const char* label, const char* hint, char* buf, int b
 
         // Edit in progress
         const float mouse_x = (io.MousePos.x - frame_bb.Min.x - style.FramePadding.x) + state->Scroll.x;
-        const float mouse_y = (is_multiline ? (io.MousePos.y/2 - draw_window->DC.CursorPos.y) : (g.FontSize * 0.5f));
+        const float mouse_y = (is_multiline ? (io.MousePos.y - draw_window->DC.CursorPos.y)/2 : (g.FontSize * 0.5f));
 
         if (select_all)
         {
@@ -1343,7 +1411,7 @@ bool CEditor::EditorWidget(const char* label, const char* hint, char* buf, int b
 
     // Render text. We currently only render selection when the widget is active or while scrolling.
     // FIXME: We could remove the '&& render_cursor' to keep rendering selection when inactive.
-    if (render_cursor || render_selection)
+    if (true || render_cursor || render_selection)
     {
         IM_ASSERT(state != NULL);
         if (!is_displaying_hint)
@@ -1482,6 +1550,13 @@ bool CEditor::EditorWidget(const char* label, const char* hint, char* buf, int b
 				if(cur->ctx_snapshot) {
 					draw_window->DrawList->AddCircleFilled(rect_pos + ImVec2(0.0, -g.FontSize), 2.5, ImColor(0.0f, 0.8f, 0.0f, 1.0f), 4);
 				}
+                // mark positions with more than one actualized descendant
+                if(cur->parent && cur->parent->children.size()>1) {
+                    int cnt=0;
+                    for(auto &c : cur->parent->children) cnt += (c->is_accepted);
+                    if(cnt>1)
+                        draw_window->DrawList->AddCircle(rect_pos + ImVec2(0.0, -g.FontSize), 5.0, ImColor(0.0f, 0.0f, 1.0f, 0.5f), 3);
+                }
 				
 				const char *tok_begin = text_begin + offs;
 				const char *tok_end = tok_begin + cur->str_size;
@@ -1500,15 +1575,15 @@ bool CEditor::EditorWidget(const char* label, const char* hint, char* buf, int b
 					// render predictions
 					if(state->invalidate_predictions) {
 						if(parent->sel>0) {
-							state->above = state->llm.render(parent->children[parent->sel-1],4,true);
+							state->above = state->llm.render(parent->children[parent->sel-1], state->llm.predict_alt,true);
 							std::replace( state->above.begin(), state->above.end(), '\n', '\\');
 						} else state->above = "";
 						if(parent->children.size()>(parent->sel)) {
-							state->selected = state->llm.render(parent->children[parent->sel],6,true);
+							state->selected = state->llm.render(parent->children[parent->sel], state->llm.predict_main,true);
 							std::replace( state->selected.begin(), state->selected.end(), '\n', '\\');
 						} else state->selected = "";
 						if(parent->children.size()>(parent->sel+1)) {
-							state->below = state->llm.render(parent->children[parent->sel+1],4,true);
+							state->below = state->llm.render(parent->children[parent->sel+1], state->llm.predict_alt,true);
 							std::replace( state->below.begin(), state->below.end(), '\n', '\\');
 						} else {
 							state->below = "";
