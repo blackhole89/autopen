@@ -4,6 +4,7 @@
 #include <list>
 #include <thread>
 #include <mutex>
+#include <functional>
 #include "common.h"
 
 struct LLMBuffer;

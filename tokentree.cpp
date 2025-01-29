@@ -21,7 +21,7 @@ void LLMBuffer::init()
 	
 	llama_model_params model_params = llama_model_default_params();
 
-	//model_params.n_gpu_layers = 99; // offload all layers to the GPU
+	model_params.n_gpu_layers = 99; // offload all layers to the GPU
 	//model = llama_load_model_from_file("llama.cpp/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf", model_params);
 	//model = llama_load_model_from_file("llama.cpp/openhermes-2-mistral-7b.Q4_K_M.gguf", model_params);
 	//model = llama_load_model_from_file("llama.cpp/stablelm-zephyr-3b.Q4_K_M.gguf", model_params);
@@ -342,9 +342,9 @@ void LLMBuffer::on_work_done()
 	if(!wq_head_invalid) {
 		std::shared_ptr<uint8_t[]> snap;
 		if(llm_state_changed && ((work_base->depth%10)+work_batch.n_tokens)>=10)  {
-			printf("snap, as work base is at %d and processed %d extra tokens\n", work_base->depth, work_batch.n_tokens);
 			snap = std::shared_ptr<uint8_t[]>(new uint8_t[llama_get_state_size(ctx)]);
-			llama_copy_state_data(ctx,snap.get());
+			size_t copied = llama_copy_state_data(ctx,snap.get());
+			printf("snap (%d/%d bytes), as work base is at %d and processed %d extra tokens.\n", copied, llama_get_state_size(ctx), work_base->depth, work_batch.n_tokens);
 		}
 		
 		switch(wq.front().wl_type) {
