@@ -3,6 +3,8 @@
 A text editor that lets you view the text through the eyes of an LLM, see what it expects and what it finds surprising, generate continuations,
 and seamlessly explore different alternatives at every point - as in [the device](https://en.wikipedia.org/wiki/Autopen), and a [pen](https://en.wikipedia.org/wiki/Pen_%28enclosure%29) for [assorted](https://en.wikipedia.org/wiki/LLaMA) [macrofauna](https://lmsys.org/blog/2023-03-30-vicuna/).
 
+## About
+
 ![Screenshot](/screenshots/screenshot.png?raw=true)
 
 LLMs are essentially functions that produce, given any piece of text, a probability distribution over words and word fragments that may immediately follow it.
@@ -23,7 +25,7 @@ Autopen was created for that purpose. It can:
 
 * Flip through these continuations (Alt-⬆⬇) and emit them into the buffer (Alt-⮕). 
 
-An old demonstration video (before the UI was ported to imgui) can be found [here](https://www.youtube.com/watch?v=1O1T2q2t7i4).
+To see this in practice, see the [old demonstration video]((https://www.youtube.com/watch?v=1O1T2q2t7i4) (from before the UI was ported to imgui).
 
 This project is powered by [llama.cpp](https://github.com/ggerganov/llama.cpp), [dear imgui](https://github.com/ocornut/imgui) and [imgui-filebrowser](https://github.com/AirGuanZ/imgui-filebrowser/), as well as SDL2 and OpenGL.
 
@@ -73,8 +75,9 @@ Dependencies may include SDL2 and more.
 On Windows: try the VS2022 .sln file (and vcpkg). imgui should be cloned as on Linux, and llama.cpp should be cloned and built with a configuration matching the Release/Debug setting you pick (as libcommon has to be statically linked). Some adjustment of include and library directories will probably be necessary.
 
 ### To run
+Under Linux:
 ```
 ./cmake-build-Release/output/autopen
 ```
-The model location is hardcoded to `./qwen2.5-1.5b-instruct-q4_k_m.gguf` (so in particular, this file is assumed to be present), but feel free to change this.
 
+Under Windows: run `autopen.exe` in a folder containing the .otf/.ttc fonts and all required DLLs.
