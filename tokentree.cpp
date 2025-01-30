@@ -29,8 +29,8 @@ void LLMBuffer::init()
 	//work_done.connect(sigc::mem_fun(this,&LLMBuffer::on_work_done));
 	work_done_flag = false;
 
-	//load_model("Qwen2.5-3B.Q4_K_M.gguf");
-	load_model("Phi-3.5-mini-instruct-Q4_K_M.gguf");
+	load_model("Qwen2.5-3B.Q4_K_M.gguf");
+	//load_model("Phi-3.5-mini-instruct-Q4_K_M.gguf");
 }
 
 void LLMBuffer::load_model(const char *fn)
@@ -42,7 +42,7 @@ void LLMBuffer::load_model(const char *fn)
 
 	if (new_model == NULL) {
 		fprintf(stderr , "%s: error: unable to load model\n" , __func__);
-		exit(1);
+		return;
 	}
 
 	std::string text;

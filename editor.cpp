@@ -51,28 +51,40 @@ void CEditor::SettingsWindow()
             fileDialog.SetTypeFilters({".gguf"});
 
             ImGui::Text("Loaded model: "); ImGui::SameLine();
-            if(ImGui::Button(llmst.llm.model_fn.c_str())) 
-                fileDialog.Open();
+            if(llmst.llm.model) {
+                if(ImGui::Button(llmst.llm.model_fn.c_str())) 
+                    fileDialog.Open();
 
-            fileDialog.Display();
+                fileDialog.Display();
             
-            if(fileDialog.HasSelected()) {
-                llmst.llm.load_model(fileDialog.GetSelected().string().c_str());
-                fileDialog.ClearSelected();
-            }
+                if(fileDialog.HasSelected()) {
+                    llmst.llm.load_model(fileDialog.GetSelected().string().c_str());
+                    fileDialog.ClearSelected();
+                }
 
-            ImGui::Text("Type: %s %s",llmst.llm.model_arch.c_str(), llmst.llm.model_size.c_str());
+                ImGui::Text("Type: %s %s",llmst.llm.model_arch.c_str(), llmst.llm.model_size.c_str());
 
-            ImGui::Text("Params: %lld   Layers: %d   Heads: %d", llama_model_n_params(llmst.llm.model), llama_model_n_layer(llmst.llm.model), llama_model_n_head(llmst.llm.model));
+                ImGui::Text("Params: %lld   Layers: %d   Heads: %d", llama_model_n_params(llmst.llm.model), llama_model_n_layer(llmst.llm.model), llama_model_n_head(llmst.llm.model));
 
-            bool open = ImGui::CollapsingHeader("Model metadata");
-            if(open) {
-                for(int i=0; i<llama_model_meta_count(llmst.llm.model); i++) {
-                    char k_buf[256], v_buf[256];
-                    llama_model_meta_key_by_index(llmst.llm.model, i, k_buf, 256);
-                    llama_model_meta_val_str_by_index(llmst.llm.model, i, v_buf, 256);
+                bool open = ImGui::CollapsingHeader("Model metadata");
+                if(open) {
+                    for(int i=0; i<llama_model_meta_count(llmst.llm.model); i++) {
+                        char k_buf[256], v_buf[256];
+                        llama_model_meta_key_by_index(llmst.llm.model, i, k_buf, 256);
+                        llama_model_meta_val_str_by_index(llmst.llm.model, i, v_buf, 256);
                 
-                    ImGui::Text("%s = %s", k_buf, v_buf);
+                        ImGui::Text("%s = %s", k_buf, v_buf);
+                    }
+                }
+            } else {
+                if(ImGui::Button("None. Please select.")) 
+                    fileDialog.Open();
+
+                fileDialog.Display();
+
+                if(fileDialog.HasSelected()) {
+                    llmst.llm.load_model(fileDialog.GetSelected().string().c_str());
+                    fileDialog.ClearSelected();
                 }
             }
             
@@ -115,32 +127,40 @@ void CEditor::Render()
 	bool p_open = true;
 	ImGui::Begin("Editor", &p_open, flags);
 	
-	ImGui::PushFont(font_editor);
-	EditorWidget("##source", "", buf, 40960, ImVec2(-FLT_MIN, -20.0), ImGuiInputTextFlags_Multiline | ImGuiInputTextFlags_NoUndoRedo);
-	ImGui::PopFont();
+    if(llmst.llm.model) {
+	    ImGui::PushFont(font_editor);
+	    EditorWidget("##source", "", buf, 40960, ImVec2(-FLT_MIN, -20.0), ImGuiInputTextFlags_Multiline | ImGuiInputTextFlags_NoUndoRedo);
+	    ImGui::PopFont();
 	
-	if(llmst.current_tok) {
-		ImGui::Text("DEPTH: %3d (+%3d) -- CHILDREN: %d/%d -- LOG.L: %2.3f -- TOP: %2.3f -- TOK: %d '%s'",
-			llmst.current_tok->depth, llmst.current_tok->base_pos, llmst.current_tok->sel, llmst.current_tok->children.size(), llmst.current_tok->logit, llmst.current_tok->max_logit, llmst.current_tok->tok, llmst.current_tok->str.c_str());
-	}
+	    if(llmst.current_tok) {
+		    ImGui::Text("DEPTH: %3d (+%3d) -- CHILDREN: %d/%d -- LOG.L: %2.3f -- TOP: %2.3f -- TOK: %d '%s'",
+			    llmst.current_tok->depth, llmst.current_tok->base_pos, llmst.current_tok->sel, llmst.current_tok->children.size(), llmst.current_tok->logit, llmst.current_tok->max_logit, llmst.current_tok->tok, llmst.current_tok->str.c_str());
+	    }
 	
-	ImGui::End();
+	    ImGui::End();
 	
-	//ImGui::ShowDemoWindow();
-	if(p_wqueue) {
-        ImGui::SetNextWindowSize(ImVec2(300, 300), ImGuiCond_FirstUseEver);
-        if(ImGui::Begin("Work queue", &p_wqueue)) {
-		    if (ImGui::BeginListBox("##wq", ImVec2(-FLT_MIN, -FLT_MIN)))
-		    {
-			    const char *wl_typenames[3] = { "SCORE  ", "PREDICT", "BRANCH " };
-			    for(auto i = llmst.llm.wq_head_invalid?++llmst.llm.wq.begin():llmst.llm.wq.begin(); i!=llmst.llm.wq.end(); ++i) {
-				    ImGui::Text("%s %16lX %d (+%d) '%s'..", wl_typenames[i->wl_type], i->target, i->depth, i->base_pos, i->target->str.c_str());
-			    }
-			    ImGui::EndListBox();
-		    }
-        }
-		ImGui::End();
-	}
+	    //ImGui::ShowDemoWindow();
+	    if(p_wqueue) {
+            ImGui::SetNextWindowSize(ImVec2(300, 300), ImGuiCond_FirstUseEver);
+            if(ImGui::Begin("Work queue", &p_wqueue)) {
+		        if (ImGui::BeginListBox("##wq", ImVec2(-FLT_MIN, -FLT_MIN)))
+		        {
+			        const char *wl_typenames[3] = { "SCORE  ", "PREDICT", "BRANCH " };
+			        for(auto i = llmst.llm.wq_head_invalid?++llmst.llm.wq.begin():llmst.llm.wq.begin(); i!=llmst.llm.wq.end(); ++i) {
+				        ImGui::Text("%s %16lX %d (+%d) '%s'..", wl_typenames[i->wl_type], i->target, i->depth, i->base_pos, i->target->str.c_str());
+			        }
+			        ImGui::EndListBox();
+		        }
+            }
+		    ImGui::End();
+	    }
+    } else {
+        ImGui::End();
+
+        p_settings=true;
+        ImGui::SetNextWindowSize(ImVec2(300, 300), ImGuiCond_Always);
+        ImGui::SetNextWindowPos(ImVec2(30, 30), ImGuiCond_Always);
+    }
 
     SettingsWindow();
 	
