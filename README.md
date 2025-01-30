@@ -23,23 +23,33 @@ Autopen was created for that purpose. It can:
 
 * Flip through these continuations (Alt-⬆⬇) and emit them into the buffer (Alt-⮕). 
 
-[![Demonstration video](https://img.youtube.com/vi/1O1T2q2t7i4/maxresdefault.jpg)](https://www.youtube.com/watch?v=1O1T2q2t7i4)
+An old demonstration video (before the UI was ported to imgui) can be found [here](https://www.youtube.com/watch?v=1O1T2q2t7i4).
 
 This project is powered by [llama.cpp](https://github.com/ggerganov/llama.cpp), [dear imgui](https://github.com/ocornut/imgui) and [imgui-filebrowser](https://github.com/AirGuanZ/imgui-filebrowser/), as well as SDL2 and OpenGL.
 
 The code that is original to this project is licensed under the GNU GPL v3.
 
+### Windows binary build
+
+A Windows binary build can be downloaded [here](https://www.cattheory.net/files/autopen.zip). You may need the NVIDIA CUDA runtime from [this file](https://www.cattheory.net/files/cuda.zip).
+
+If these builds do not work on your system, e.g. because your NVIDIA drivers or GPU are too old or non-existent, you can
+also obtain an alternative build of llama.cpp, possibly along with a matching `cudart(...).zip`, from among [the official builds](https://github.com/ggerganov/llama.cpp/releases/tag/b4589). Just download the appropriate binary package and put *all* DLLs in it in the same
+folder as `autopen.exe`, potentially replacing the bundled ones.
+
 ### Known limitations
 
 This is not release-quality software. Expect crashes, unexpected behaviour and terrible code.
 
-* Currently, models with SPM tokenization (such as Phi-3.5) are broken. This can be worked around with with a simple patch to llama.cpp, but that is a bit of a deployment nightmare.
+* Currently, models using SPM tokenization (such as Phi-3.5) are broken due to bizarre space-prefixing behaviour. This can be worked around with with a simple patch to llama.cpp, but that is a bit of a deployment nightmare.
 
 * Crashes due to out-of-memory conditions and bugs are not handled gracefully.
 
 * Save/load function for the buffer is a TODO. Copypaste to/from the text editor of your choice.
 
 * Due to imgui's rendering model, there is nontrivial idle CPU usage (which grows with your monitor's framerate). A smart throttling scheme would be useful.
+
+* llama.cpp's batching is surprisingly not quite monoidal (evaluating a batch of n tokens followed by a batch of m tokens gives slightly different results from evaluating a single batch of n+m tokens), which can lead to nondeterministic results. I do not know if this is a bug on our end, llama.cpp's, or a mathematical inevitability.
 
 ### To build
 Currently a mess.
