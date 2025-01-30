@@ -25,7 +25,7 @@ Autopen was created for that purpose. It can:
 
 * Flip through these continuations (Alt-⬆⬇) and emit them into the buffer (Alt-⮕). 
 
-To see this in practice, see the [old demonstration video]((https://www.youtube.com/watch?v=1O1T2q2t7i4) (from before the UI was ported to imgui).
+To see this in practice, see the [old demonstration video](https://www.youtube.com/watch?v=1O1T2q2t7i4) (from before the UI was ported to imgui).
 
 This project is powered by [llama.cpp](https://github.com/ggerganov/llama.cpp), [dear imgui](https://github.com/ocornut/imgui) and [imgui-filebrowser](https://github.com/AirGuanZ/imgui-filebrowser/), as well as SDL2 and OpenGL.
 
