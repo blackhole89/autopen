@@ -32,6 +32,7 @@ struct TTE {
 	LLMBuffer *buffer;
 	TTE(LLMBuffer *b);
 	
+	void reroot(int delta_depth, int delta_pos);
 	void clear_children();
 	~TTE();
 };
@@ -101,7 +102,7 @@ struct LLMBuffer {
 	TTE *pos2wordent(int pos);
 	
 	std::string render(TTE *tt, int max_tok=99999, bool render_predictions=false);
-	void rebuild(TTE *start, std::string text);
+	void rebuild(TTE *start, std::string text, int change_end=0, int reconcile_offset=0);
 	void actualize(TTE *start);
 	
 	void req_alts_at_pos(int pos);

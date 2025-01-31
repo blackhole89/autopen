@@ -102,7 +102,7 @@ void LLMBuffer::load_model(const char *fn)
 	llama_copy_state_data(ctx,root.ctx_snapshot.get());
 	ctx_state=NULL;
 
-	rebuild(&root, text);
+	rebuild(&root, text, text.size());
 }
 
 void LLMBuffer::insert(int pos, std::string text)
@@ -113,7 +113,7 @@ void LLMBuffer::insert(int pos, std::string text)
 	tail.insert(pos - start->base_pos, text);
 	printf("post-ins: '%s'\n", tail.c_str());
 	
-	rebuild(start, tail);
+	rebuild(start, tail, pos+text.size(), text.size());
 }
 
 void LLMBuffer::erase(int from, int to)
@@ -122,7 +122,7 @@ void LLMBuffer::erase(int from, int to)
 	std::string tail = render(start);
 	tail.erase(from - start->base_pos, to - from);
 	
-	rebuild(start, tail);
+	rebuild(start, tail, from, from - to);
 }
 
 /* given a buffer offset, get pointer to live token tree entry covering that offset */
@@ -179,7 +179,7 @@ std::string LLMBuffer::render(TTE *tt, int max_tok, bool render_predictions)
 	return ret;
 }
 
-void LLMBuffer::rebuild(TTE *start, std::string text)
+void LLMBuffer::rebuild(TTE *start, std::string text, int change_end, int reconcile_offset)
 {
 	const int n_tokens = -llama_tokenize(vocab, text.c_str(), text.size(), NULL, 0, start->tok==llama_vocab_bos(vocab), true);
 	std::vector<llama_token> tokens_list(n_tokens);
@@ -208,28 +208,90 @@ void LLMBuffer::rebuild(TTE *start, std::string text)
 	TTE *rebuild_root = start->parent?start->parent:start;
 	
 	printf("rebuild '%s'\n", text.c_str());
-	start->clear_children(); 
-	for(size_t i=0;i<tokens_list.size();++i) {
-		start ->has_logit = false;
-		start->set_tok(tokens_list[i]); 
-		// NOTE: Need patched llama.cpp to not add extra space.
-		//if(start->base_pos==0 && start->str[0]==' ') start->str.erase(0,1);
-		
-		printf("%d '%s' . ",start->tok, start->str.c_str());
-		
-		if((i+1)<tokens_list.size()) {
-			start->children.push_back(new TTE(this));
-			start->sel=0;
-			TTE *next = start->children[0];
-			next->base_pos = start->base_pos + start->str_size;
-			next->depth = start->depth + 1;
-			next->parent = start;
-			next->is_accepted = true;
-			next->sel = 0;
-			start=next;
+
+
+	TTE *target_p=rebuild_root, *old_p=start;
+	size_t source_i=0;
+
+	// skip matching tokens in the beginning
+	while (source_i < tokens_list.size() && old_p && tokens_list[source_i] == old_p->tok) {
+		++source_i;
+		target_p = old_p;
+		if(old_p->children.size()) {
+			old_p = old_p->children[target_p->sel];
+
+			if(!old_p->is_accepted) {
+				delete old_p;
+				old_p = NULL;
+				break;
+			}
+		} else old_p = NULL;
+	}
+
+	// insert new tokens
+	while (source_i < tokens_list.size()) {
+		int next_basepos = target_p->base_pos + target_p->str_size;
+
+		if(old_p) printf("try reconcile: %d @%d with old %d '%s' @%d\n", tokens_list[source_i], next_basepos, old_p->tok, old_p->str.c_str(), old_p->base_pos + reconcile_offset);
+
+		// if we have already added all the new characters, and the tokenisaton has realigned,
+		// then we can hook in the rest of the old tree
+		if(old_p && old_p->tok == tokens_list[source_i] && next_basepos >= change_end && old_p->base_pos + reconcile_offset == next_basepos) {
+			if(target_p->children.size()) target_p->children[target_p->sel] = old_p;
+			else {
+				target_p->children.push_back(old_p);
+				target_p->sel = 0;
+			}
+			old_p->parent = target_p;
+			old_p->reroot(1+target_p->depth-old_p->depth, reconcile_offset);
+			goto rebuild_linked;
+		}
+
+		TTE *next = new TTE(this);
+
+		if(target_p->children.size()) target_p->children[target_p->sel] = next;
+		else {
+			target_p->children.push_back(next);
+			target_p->sel = 0;
+		}
+
+		next->base_pos = next_basepos;
+		next->depth = target_p->depth + 1;
+		next->parent = target_p;
+		next->is_accepted = true;
+		next->sel = 0;
+		next->has_logit = false;
+		next->set_tok (tokens_list[source_i]);
+		++source_i;
+		target_p = next;
+
+		printf("%d '%s' . ",target_p->tok, target_p->str.c_str());
+
+		// advance old_p
+		while(old_p && old_p->base_pos + reconcile_offset < target_p->base_pos + target_p->str_size) {
+			if(old_p->children.size()) {
+				TTE *oldold_p = old_p;
+				old_p = old_p->children[old_p->sel];
+				// delete skipped token, except for the one child we keep
+				oldold_p->children[oldold_p->sel] = *oldold_p->children.rbegin();
+				oldold_p->children.pop_back();
+				delete oldold_p;
+				// if we entered prediction territory, delete that too
+				if(!old_p->is_accepted) {
+					delete old_p;
+					old_p = NULL;
+				}
+			} else {
+				delete old_p;
+				old_p = NULL;
+			}
 		}
 	}
 	printf("\n");
+
+	// if we are here, we deposited the entire new token string. No predictions etc. should be allowed to live after it
+	target_p->clear_children();
+rebuild_linked:;
 	
 	enqueueWork(WL_SCORE, rebuild_root);
 }
@@ -386,7 +448,12 @@ void LLMBuffer::on_work_done()
 				wq.pop_front();
 				wq_head_invalid=false;
 
+				printf("score advance: %p @%d\n", t, t->depth);
+
+				// cross all already-scored children at once to avoid huge call stacks
+				while(t->children.size() && t->children[t->sel]->has_logit) t = t->children[t->sel];
 				if(t->children.size()) injectWork(WL_SCORE, t->children[t->sel], gen_extra);
+
 				break;
 			}
 
@@ -719,8 +786,11 @@ void LLMBuffer::alt_next(int pos)
 	if(cur->children.size()>(cur->sel+1))
 		++cur->sel;
 		
-	if(cur->children.size()) actualize(cur->children[cur->sel]);
-		
+	if(cur->children.size()) {
+		actualize(cur->children[cur->sel]);
+		enqueueWork(WL_SCORE, cur->children[cur->sel]); // previous changes might have left this branch unscored
+	}
+	
 	injectWork(WL_BRANCH, cur, predict_alt);
 	try_start_working();
 }
@@ -731,7 +801,10 @@ void LLMBuffer::alt_prev(int pos)
 	if(cur->sel>0)
 		--cur->sel;
 	
-	if(cur->children.size()) actualize(cur->children[cur->sel]);
+	if(cur->children.size()) {
+		actualize(cur->children[cur->sel]);
+		enqueueWork(WL_SCORE, cur->children[cur->sel]); // previous changes might have left this branch unscored
+	}
 	
 	injectWork(WL_BRANCH, cur, predict_alt);
 	try_start_working();
@@ -743,7 +816,17 @@ int LLMBuffer::alt_commit(int pos)
 	if(cur->children.size()) {
 		cur->children[cur->sel]->is_accepted = true;
 		actualize(cur->children[cur->sel]);
-		return cur->children[cur->sel]->base_pos + cur->children[cur->sel]->str_size;
+		// skip to not end in the middle of a UTF-8 codon
+		cur = cur->children[cur->sel];
+		int posn;
+		do {
+			posn = cur->base_pos + cur->str_size;
+			if(cur->children.size()) {
+				cur = cur->children[cur->sel];
+				if(!cur->is_accepted) cur=NULL;
+			} else cur = NULL;
+		} while(cur && (cur->str[0]&0xC0) == 0x80);
+		return posn;
 	} else return cur->base_pos + cur->str_size;
 }
 
@@ -752,9 +835,15 @@ int LLMBuffer::alt_back(int pos)
 	TTE *cur = pos2ent(pos);
 	
 	if(cur->base_pos == pos) {
-		if(cur->parent) return cur->parent->base_pos;
-		else return cur->base_pos;
-	} else return cur->base_pos;
+		if(cur->parent) cur = cur->parent;
+	}
+	int posn = cur->base_pos;
+	//skip to not end in the middle of a UTF-8 codon
+	while(cur && (cur->str[0]&0xC0) == 0x80) {
+		cur = cur->parent;
+		if(cur) posn = cur->base_pos;
+	}
+	return posn;
 }
 
 void LLMBuffer::debug_tte(TTE *pos)
@@ -775,10 +864,11 @@ void TTE::set_tok(llama_token t)
 	
 	tok = t;
 	char buf[128];
-	str_size = llama_token_to_piece(buffer->vocab, t, buf, 128, 0, false);
+	str_size = llama_token_to_piece(buffer->vocab, t, buf, 128, 0, depth>0);
 	//str_size = llama_detokenize(buffer->vocab, &t, 1, buf, 128, false, false);
 	buf[str_size]=0;
 	str = buf;
+
 	/*
 	if(str.validate()) str_size = str.size();
 	else {
@@ -788,6 +878,24 @@ void TTE::set_tok(llama_token t)
 	*/
 }
 
+void TTE::reroot(int delta_depth, int delta_pos)
+{
+	has_logit = false;
+	depth += delta_depth;
+	base_pos += delta_pos;
+
+	for(int i=0; i<children.size(); ++i) {
+		if(!children[i]->is_accepted) {
+			delete children[i];
+			children.erase(children.begin()+i);
+			if(sel>=i) --sel; // TODO: this will behave weirdly if an empty prediction was selected
+			--i;
+		} else {
+			children[i]->reroot(delta_depth, delta_pos);
+		}
+	}
+}
+
 void TTE::clear_children()
 {	
 	for(TTE *a : children) {
@@ -795,6 +903,7 @@ void TTE::clear_children()
 	}
 	children.clear();
 }
+
 
 TTE::~TTE()
 {
