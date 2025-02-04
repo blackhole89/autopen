@@ -74,6 +74,8 @@ struct CEditor {
 	LLMTextState llmst;
 	
 	ImFont *font_editor, *font_ui;
+
+    ImColor c_highlight = ImColor(1.0f, 0.0f, 0.0f, 1.0f);
 	
 	bool p_wqueue = true, p_settings = false;
 	
@@ -82,5 +84,6 @@ struct CEditor {
 	void Init();
 	void Render();
     void SettingsWindow();
+    void AboutWindow();
 	bool EditorWidget(const char* label, const char* hint, char* buf, int buf_size, const ImVec2& size_arg, ImGuiInputTextFlags flags);
 };

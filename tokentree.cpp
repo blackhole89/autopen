@@ -385,13 +385,13 @@ void LLMBuffer::purgeWork(int start_depth)
 	if(!wq.size()) return;
 	if(wq.front().depth >= start_depth) {
 		wq_head_invalid = true;
-		//printf("purge '%s'\n", wq.front().target->str.c_str());
+		printf("purge '%s'\n", wq.front().target->str.c_str());
 	}
 	for(auto i = ++wq.begin(), j=i; i!=wq.end(); ) {
 		++j;
 		
 		if(i->depth >= start_depth) {
-			//printf("purge '%s'\n", i->target->str.c_str());
+			printf("purge '%s'\n", i->target->str.c_str());
 			wq.erase(i);
 		}
 		
@@ -452,7 +452,8 @@ void LLMBuffer::on_work_done()
 
 				// cross all already-scored children at once to avoid huge call stacks
 				while(t->children.size() && t->children[t->sel]->has_logit) t = t->children[t->sel];
-				if(t->children.size()) injectWork(WL_SCORE, t->children[t->sel], gen_extra);
+				if(t->children.size()) //!t->children[t->sel]->has_logit
+					injectWork(WL_SCORE, t, gen_extra);
 
 				break;
 			}

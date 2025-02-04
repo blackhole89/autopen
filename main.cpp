@@ -149,6 +149,8 @@ int main (int argc, char *argv[])
 	mergecfg.MergeMode = true;
 	e->font_editor = io.Fonts->AddFontFromFileTTF("NotoSerifCJK-Regular.ttc", 20.0f, &mergecfg, io.Fonts->GetGlyphRangesChineseFull());
     e->font_editor = io.Fonts->AddFontFromFileTTF("NotoSerifCJK-Regular.ttc", 20.0f, &mergecfg, io.Fonts->GetGlyphRangesJapanese());
+    e->font_editor = io.Fonts->AddFontFromFileTTF("NotoSerifCJK-Regular.ttc", 20.0f, &mergecfg, io.Fonts->GetGlyphRangesKorean());
+    e->font_editor = io.Fonts->AddFontFromFileTTF("NotoSerifCJK-Regular.ttc", 20.0f, &mergecfg, io.Fonts->GetGlyphRangesCyrillic());
 	e->font_ui = io.Fonts->AddFontDefault();
 	io.Fonts->Build();
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());

@@ -43,6 +43,9 @@ void CEditor::SettingsWindow()
 
             ImGui::PopItemWidth();
 
+            ImGui::ColorEdit3("Logit color", &c_highlight.Value.x);
+            ImGui::SetItemTooltip("Color to highlight token logits in");
+
             ImGui::Separator();
 
             static ImGui::FileBrowser fileDialog;
@@ -93,6 +96,24 @@ void CEditor::SettingsWindow()
     }
 }
 
+void CEditor::AboutWindow()
+{
+    ImGui::PushOverrideID(ImHashStr("A"));
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+    //ImGui::OpenPopup("About Autopen");
+    if (ImGui::BeginPopupModal("About Autopen", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::Text("Autopen (ver. alpha)\n  " __DATE__ " " __TIME__);
+        ImGui::Spacing();
+        ImGui::Text("(C) 2024-2025, Matvey Soloviev");
+        if(ImGui::Button("Ok",ImVec2(-1,0))) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+    ImGui::PopID();
+}
+
 void CEditor::Render()
 {
 	llmst.llm.CheckWork();
@@ -113,8 +134,15 @@ void CEditor::Render()
         if (ImGui::BeginMenu("Windows"))
         {
             ImGui::MenuItem("Work queue", NULL, &p_wqueue);
+            ImGui::Separator();
+            if(ImGui::MenuItem("About", NULL, false, true)) {
+                ImGui::PushOverrideID(ImHashStr("A"));
+                ImGui::OpenPopup("About Autopen");
+                ImGui::PopID();
+            }
 			ImGui::EndMenu();
 		}
+        AboutWindow();
 		ImGui::EndMainMenuBar();
 	}
 	
@@ -1482,7 +1510,7 @@ bool CEditor::EditorWidget(const char* label, const char* hint, char* buf, int b
 
             // Store text height (note that we haven't calculated text width at all, see GitHub issues #383, #1224)
             if (is_multiline)
-                text_size = ImVec2(inner_size.x, line_count * line_size);
+                text_size = ImVec2(inner_size.x, line_count * line_size + g.FontSize);
         }
 
         // Scroll
@@ -1642,7 +1670,8 @@ bool CEditor::EditorWidget(const char* label, const char* hint, char* buf, int b
 							if(cur->has_logit) {
 								float logit_diff = cur->logit - cur->max_logit;
 								float logit_scaled = -((logit_diff)/1.6);
-								logit_c = ImColor(1.0f, 0.0f, 0.0f, 0.1f*logit_scaled);
+								logit_c = c_highlight;
+                                logit_c.Value.w = 0.1f*logit_scaled;
 							} else {
 								logit_c = ImColor(0.5f,0.5f,0.5f,0.5f);
 							}
