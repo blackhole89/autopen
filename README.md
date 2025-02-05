@@ -5,7 +5,7 @@ and seamlessly explore different alternatives at every point - as in [the device
 
 ## About
 
-[![Demonstration video](https://img.youtube.com/vi/JItYmDS7Wv0/maxresdefault.jpg)](https://www.youtube.com/watch?v=JItYmDS7Wv0)
+[![Demonstration video](https://img.youtube.com/vi/GXWZPpVI0zU/maxresdefault.jpg)](https://www.youtube.com/watch?v=GXWZPpVI0zU)
 
 LLMs are essentially functions that produce, given any piece of text, a probability distribution over words and word fragments that may immediately follow it.
 This true nature is hidden by the way in which LLMs are usually deployed: the LLM is applied to an input string to obtain a distribution, the distribution is *sampled* in some way to pick a single word or fragment to attach, and the resulting extended string is fed back as an input, over and over again. Thus, the LLM becomes a device that produces a single possibly endless stream of text, which (depending on the sampling procedure) may be nondeterministic.
