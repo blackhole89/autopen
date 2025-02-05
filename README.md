@@ -56,19 +56,40 @@ This is not release-quality software. Expect crashes, unexpected behaviour and t
 ### To build
 Currently a mess.
 
+Install libraries:
+
+```bash
+sudo apt install cmake libsdl2-dev libgtkmm-3.0-dev libgtksourceviewmm-3.0-dev libjsoncpp-dev
+```
+
 On Linux (possibly outdated):
 ```
+# where are we right now? In autopen or outside?
+# 
+git clone https://github.com/blackhole89/autopen.git
+cd autopen
+
+# clone imgui in it
 git clone https://github.com/ocornut/imgui.git
 cd imgui
 git checkout docking
+
+# out to autopen
 cd ..
+
+# clone llama.cpp here
 git clone https://github.com/ggerganov/llama.cpp.git
 cd llama.cpp
+
+## What is this patch
 # patch -p1 < ../llama.patch
 cmake . && make llama && make common
+
+# go back to autopen
 cd ..
-cmake .
-make
+
+# configure and make
+cmake . && make
 ```
 Dependencies may include SDL2 and more.
 
