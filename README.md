@@ -54,25 +54,33 @@ This is not release-quality software. Expect crashes, unexpected behaviour and t
 * llama.cpp's batching is surprisingly not quite monoidal (evaluating a batch of n tokens followed by a batch of m tokens gives slightly different results from evaluating a single batch of n+m tokens), which can lead to nondeterministic results. I do not know if this is a bug on our end, llama.cpp's, or a mathematical inevitability.
 
 ### To build
-Currently a mess.
+Currently slightly messy. 
 
-On Linux (possibly outdated):
+On Linux:
+
+First make sure you have installed the build dependencies. For Debian/Ubuntu systems:
+```bash
+sudo apt-get install cmake libsdl2-dev libjsoncpp-dev
 ```
-git clone https://github.com/ocornut/imgui.git
-cd imgui
-git checkout docking
-cd ..
-git clone https://github.com/ggerganov/llama.cpp.git
+
+Then, clone and build the repository and its submodules:
+```bash
+# if you haven't already, fetch autopen
+git clone https://github.com/blackhole89/autopen.git
+cd autopen
+# fetch git submodules for imgui and llama.cpp
+git submodule init
+git submodule update
+# build llama.cpp static libraries with default config (CPU mode)
 cd llama.cpp
-# patch -p1 < ../llama.patch
-cmake . && make llama && make common
+cmake . && make -j8
 cd ..
+# build autopen
 cmake .
 make
 ```
-Dependencies may include SDL2 and more.
 
-On Windows: try the VS2022 .sln file (and vcpkg). imgui should be cloned as on Linux, and llama.cpp should be cloned and built with a configuration matching the Release/Debug setting you pick (as libcommon has to be statically linked). Some adjustment of include and library directories will probably be necessary.
+On Windows: try the VS2022 .sln file (and vcpkg). The submodules should be fetched as on Linux, and llama.cpp should be cloned and built with a configuration matching the Release/Debug setting you pick (as libcommon has to be statically linked). Some adjustment of include and library directories will probably be necessary.
 
 ### To run
 Under Linux:
