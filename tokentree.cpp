@@ -1,5 +1,6 @@
 #include "tokentree.h"
 #include <set>
+#include <algorithm>
 #include <string.h>
 
 void LLMBuffer::init()
