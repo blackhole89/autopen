@@ -943,22 +943,6 @@ bool CEditor::EditorWidget(const char* label, const char* hint, char* buf, int b
     const bool buf_display_from_state = (render_cursor || render_selection || g.ActiveId == id) && !is_readonly && state;
     const bool is_displaying_hint = (hint != NULL && (buf_display_from_state ? state->TextA.Data : buf)[0] == 0);
 
-    // Password pushes a temporary font with only a fallback glyph
-    if (is_password && !is_displaying_hint)
-    {
-        const ImFontGlyph* glyph = g.Font->FindGlyph('*');
-        ImFont* password_font = &g.InputTextPasswordFont;
-        password_font->FontSize = g.Font->FontSize;
-        password_font->Scale = g.Font->Scale;
-        password_font->Ascent = g.Font->Ascent;
-        password_font->Descent = g.Font->Descent;
-        password_font->ContainerAtlas = g.Font->ContainerAtlas;
-        password_font->FallbackGlyph = glyph;
-        password_font->FallbackAdvanceX = glyph->AdvanceX;
-        IM_ASSERT(password_font->Glyphs.empty() && password_font->IndexAdvanceX.empty() && password_font->IndexLookup.empty());
-        PushFont(password_font);
-    }
-
     // Process mouse inputs and character inputs
     if (g.ActiveId == id)
     {
