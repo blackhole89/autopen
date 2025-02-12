@@ -34,7 +34,8 @@ set(WORKSPACE_PATH "${CMAKE_CURRENT_LIST_DIR}/")
 include_directories(
     .
     .
-    llama.cpp/
+    llama.cpp/include/
+    llama.cpp/ggml/include/
     llama.cpp/common/
     imgui/
     imgui/backends/
@@ -125,22 +126,24 @@ endif(WIN32)
 # Library path
 link_directories(
     .
-    llama.cpp/
+    llama.cpp/src/
     llama.cpp/common/
+    llama.cpp/ggml/
+    llama.cpp/ggml/src/
 )
 
 # Define the CXX sources
 set ( CXX_SRCS
-    ${CMAKE_CURRENT_LIST_DIR}/editor.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/imgui/backends/imgui_impl_opengl3.cpp
     ${CMAKE_CURRENT_LIST_DIR}/imgui/backends/imgui_impl_sdl2.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/imgui/backends/imgui_impl_opengl3.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tokentree.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui_widgets.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/editor.cpp
     ${CMAKE_CURRENT_LIST_DIR}/main.cpp
     ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui_demo.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui_widgets.cpp
     ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui_draw.cpp
     ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui_tables.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/imgui/imgui.cpp
 )
 
 set_source_files_properties(
@@ -167,6 +170,9 @@ target_link_libraries(autopen
     fontconfig
     libllama.a
     libcommon.a
+    libggml.a
+    libggml-base.a
+    libggml-cpu.a
     vulkan
     gomp
     GL

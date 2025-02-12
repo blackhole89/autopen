@@ -1,5 +1,6 @@
 #include "tokentree.h"
 #include <set>
+#include <string.h>
 
 void LLMBuffer::init()
 {
@@ -282,6 +283,7 @@ void LLMBuffer::rebuild(TTE *start, std::string text, int change_end, int reconc
 					old_p = NULL;
 				}
 			} else {
+				printf("delete old_p %p %s: %d + %d vs %d + %d\n", old_p, old_p->str.c_str(), old_p->base_pos, reconcile_offset, target_p->base_pos, target_p->str_size);
 				delete old_p;
 				old_p = NULL;
 			}
@@ -383,9 +385,9 @@ void LLMBuffer::injectWork(workload_type t, TTE *target, int gen_extra)
 void LLMBuffer::purgeWork(int start_depth)
 {
 	if(!wq.size()) return;
-	if(wq.front().depth >= start_depth) {
+	if(!wq_head_invalid && wq.front().depth >= start_depth) {
+		printf("purge '%s'\n", wq.front().target->str.c_str()); // the string may be invalid if the head was already invalid
 		wq_head_invalid = true;
-		printf("purge '%s'\n", wq.front().target->str.c_str());
 	}
 	for(auto i = ++wq.begin(), j=i; i!=wq.end(); ) {
 		++j;

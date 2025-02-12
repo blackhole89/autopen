@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CodeLite_Project Name="autopen" Version="11000" InternalType="GUI">
+  <Plugins>
+    <Plugin Name="qmake">
+      <![CDATA[00020001N0005Debug0000000000000001N0007Release000000000000]]>
+    </Plugin>
+  </Plugins>
   <VirtualDirectory Name="imgui">
     <VirtualDirectory Name="backends">
       <File Name="imgui/backends/imgui_impl_opengl3.cpp"/>
@@ -19,11 +24,6 @@
     <File Name="imgui/imstb_textedit.h"/>
     <File Name="imgui/imstb_truetype.h"/>
   </VirtualDirectory>
-  <Plugins>
-    <Plugin Name="qmake">
-      <![CDATA[00020001N0005Debug0000000000000001N0007Release000000000000]]>
-    </Plugin>
-  </Plugins>
   <Description/>
   <Dependencies/>
   <VirtualDirectory Name="include">
@@ -42,12 +42,17 @@
       </Compiler>
       <Linker Options="$(shell pkg-config --libs gtkmm-3.0);$(shell pkg-config --libs gtksourceviewmm-3.0);$(shell pkg-config --libs jsoncpp);$(shell pkg-config --libs sdl2)">
         <LibraryPath Value="."/>
-        <LibraryPath Value="llama.cpp/"/>
+        <LibraryPath Value="llama.cpp/src/"/>
         <LibraryPath Value="llama.cpp/common/"/>
+        <LibraryPath Value="llama.cpp/ggml/"/>
+        <LibraryPath Value="llama.cpp/ggml/src/"/>
         <Library Value="z"/>
         <Library Value="fontconfig"/>
         <Library Value="libllama.a"/>
         <Library Value="libcommon.a"/>
+        <Library Value="libggml.a"/>
+        <Library Value="libggml-base.a"/>
+        <Library Value="libggml-cpu.a"/>
         <Library Value="vulkan"/>
         <Library Value="gomp"/>
         <Library Value="GL"/>
@@ -57,7 +62,8 @@
     <Configuration Name="Debug" CompilerType="GCC" DebuggerType="GNU gdb debugger" Type="Executable" BuildCmpWithGlobalSettings="append" BuildLnkWithGlobalSettings="append" BuildResWithGlobalSettings="append">
       <Compiler Options="-g;-Wall;-Og" C_Options="-g;-Og;-Wall" Assembler="" Required="yes" PreCompiledHeader="" PCHInCommandLine="no" PCHFlags="" PCHFlagsPolicy="0">
         <IncludePath Value="."/>
-        <IncludePath Value="llama.cpp/"/>
+        <IncludePath Value="llama.cpp/include/"/>
+        <IncludePath Value="llama.cpp/ggml/include/"/>
         <IncludePath Value="llama.cpp/common/"/>
         <IncludePath Value="imgui/"/>
         <IncludePath Value="imgui/backends/"/>
@@ -100,7 +106,8 @@
     <Configuration Name="Release" CompilerType="GCC" DebuggerType="GNU gdb debugger" Type="Executable" BuildCmpWithGlobalSettings="append" BuildLnkWithGlobalSettings="append" BuildResWithGlobalSettings="append">
       <Compiler Options="-O2;-Wall" C_Options="-O2;-Wall" Assembler="" Required="yes" PreCompiledHeader="" PCHInCommandLine="no" PCHFlags="" PCHFlagsPolicy="0">
         <IncludePath Value="."/>
-        <IncludePath Value="llama.cpp/"/>
+        <IncludePath Value="llama.cpp/include/"/>
+        <IncludePath Value="llama.cpp/ggml/include/"/>
         <IncludePath Value="llama.cpp/common/"/>
         <IncludePath Value="imgui/"/>
         <IncludePath Value="imgui/backends/"/>
